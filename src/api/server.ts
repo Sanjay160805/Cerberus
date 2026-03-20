@@ -1,6 +1,7 @@
 /**
- * SENTINEL Express API Server with WebSocket
- * REST endpoints + WebSocket for real-time dashboard updates
+ * SENTINEL Express API Server
+ * REST endpoints + WebSocket for real-time autonomous monitoring
+ * Orchestrates agent cycles and dashboard communication
  */
 
 import express, { Request, Response } from "express";
@@ -10,18 +11,16 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import * as dotenv from "dotenv";
-import {
-  runAutonomousCycle,
-  runChatCycle,
-  getDashboardStatus,
-  getRecentDecisions,
-  getLoopingStatus,
-} from "../agent/sentinelAgent.js";
-import { initializeHederaClient, getOrCreateTopic } from "../hedera/hederaClient.js";
-import { warmupPriceHistory } from "../oracle/supraOracle.js";
-import { WebSocketMessage } from "../types/index.js";
+
+import { runAutonomousCycle, runChatCycle, agentStatus } from "../agent/sentinelAgent.js";
+import { getHederaClient } from "../hedera/hederaClient.js";
+import { AgentDecision } from "../types/index.js";
 
 dotenv.config();
+
+// ════════════════════════════════════════════════════════════════
+// SERVER SETUP
+// ════════════════════════════════════════════════════════════════
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,27 +33,62 @@ const wss = new WebSocketServer({ server });
 app.use(cors());
 app.use(express.json());
 
-// Serve frontend
+// Serve frontend static files
 app.use(express.static(path.join(__dirname, "../../frontend")));
 
-// Track connected WebSocket clients
+// ════════════════════════════════════════════════════════════════
+// WEBSOCKET SERVER
+// ════════════════════════════════════════════════════════════════
+
 const connectedClients = new Set<any>();
 
 /**
- * Broadcast message to all connected WebSocket clients
+ * Broadcast decision update to all connected WebSocket clients
  */
-function broadcastToClients(message: WebSocketMessage): void {
-  const messageStr = JSON.stringify({
-    ...message,
-    timestamp: message.timestamp instanceof Date ? message.timestamp.toISOString() : message.timestamp,
-  });
+function broadcastDecision(decision: AgentDecision): void {
+  const message = {
+    type: "decision",
+    data: decision,
+    timestamp: new Date().toISOString(),
+  };
+
+  const messageStr = JSON.stringify(message);
   connectedClients.forEach((client) => {
     if (client.readyState === 1) {
       // OPEN
       try {
         client.send(messageStr);
-      } catch (error) {
-        console.error("Failed to send to client:", error);
+      } catch (err) {
+        console.error("❌ WebSocket send error:", err);
+      }
+    }
+  });
+}
+
+/**
+ * Broadcast status update to all connected clients
+ */
+function broadcastStatus(): void {
+  const message = {
+    type: "status",
+    data: {
+      isRunning: agentStatus.isRunning,
+      cycleCount: agentStatus.cycleCount,
+      lastDecision: agentStatus.lastDecision,
+      threatsDetected: agentStatus.threatsDetected,
+      connectedClients: connectedClients.size,
+      uptime: process.uptime(),
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const messageStr = JSON.stringify(message);
+  connectedClients.forEach((client) => {
+    if (client.readyState === 1) {
+      try {
+        client.send(messageStr);
+      } catch (err) {
+        console.error("❌ WebSocket send error:", err);
       }
     }
   });
@@ -64,133 +98,137 @@ function broadcastToClients(message: WebSocketMessage): void {
  * WebSocket connection handler
  */
 wss.on("connection", (ws) => {
-  console.log("✓ WebSocket client connected");
+  console.log(`✓ WebSocket client connected (${connectedClients.size + 1} total)`);
   connectedClients.add(ws);
 
-  // Send initial status
-  getDashboardStatus().then((status) => {
-    const message: WebSocketMessage = {
-      type: "status",
-      data: status,
-      timestamp: new Date(),
-    };
-    ws.send(JSON.stringify(message));
-  });
+  // Send initial status on connect
+  broadcastStatus();
 
-  ws.on("message", (data) => {
+  ws.on("message", async (data) => {
     try {
       const message = JSON.parse(data.toString());
 
       if (message.type === "run_cycle") {
-        runAutonomousCycle().then((result) => {
-          broadcastToClients({
-            type: "decision",
-            data: result,
-            timestamp: new Date(),
-          });
-        });
+        console.log("📡 Client requested manual cycle");
+        agentStatus.isRunning = true;
+        const decision = await runAutonomousCycle();
+        agentStatus.lastDecision = decision;
+        agentStatus.cycleCount++;
+        agentStatus.isRunning = false;
+
+        broadcastDecision(decision);
+        broadcastStatus();
       }
-    } catch (error) {
-      console.error("✗ WebSocket message error:", error);
+
+      if (message.type === "ping") {
+        ws.send(JSON.stringify({ type: "pong", timestamp: new Date().toISOString() }));
+      }
+    } catch (err) {
+      console.error("❌ WebSocket message error:", err);
     }
   });
 
   ws.on("close", () => {
-    console.log("✓ WebSocket client disconnected");
     connectedClients.delete(ws);
+    console.log(`✓ WebSocket client disconnected (${connectedClients.size} remaining)`);
   });
 
-  ws.on("error", (error) => {
-    console.error("✗ WebSocket error:", error);
+  ws.on("error", (err) => {
+    console.error("❌ WebSocket error:", err);
     connectedClients.delete(ws);
   });
 });
 
 // ════════════════════════════════════════════════════════════════
-// REST ENDPOINTS
+// REST API ENDPOINTS
 // ════════════════════════════════════════════════════════════════
 
 /**
  * GET /api/status
+ * Returns current agent status and stats
  */
-app.get("/api/status", async (_req: Request, res: Response) => {
+app.get("/api/status", (_req: Request, res: Response) => {
   try {
-    const status = await getDashboardStatus();
-    res.json(status);
-  } catch (error) {
-    console.error("✗ /api/status failed:", error);
+    res.json({
+      status: "operational",
+      isRunning: agentStatus.isRunning,
+      cycleCount: agentStatus.cycleCount,
+      lastDecision: agentStatus.lastDecision,
+      threatsDetected: agentStatus.threatsDetected,
+      connectedClients: connectedClients.size,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("❌ /api/status error:", err);
     res.status(500).json({ error: "Failed to get status" });
   }
 });
 
 /**
- * GET /api/threat
+ * GET /api/decision
+ * Returns last decision
  */
-app.get("/api/threat", async (_req: Request, res: Response) => {
+app.get("/api/decision", (_req: Request, res: Response) => {
   try {
-    const status = await getDashboardStatus();
-    res.json(status.threat || { score: 0, level: "LOW" });
-  } catch (error) {
-    console.error("✗ /api/threat failed:", error);
-    res.status(500).json({ error: "Failed to get threat" });
-  }
-});
+    if (!agentStatus.lastDecision) {
+      return res.json({ message: "No decision made yet" });
+    }
 
-/**
- * GET /api/volatility
- */
-app.get("/api/volatility", async (_req: Request, res: Response) => {
-  try {
-    const status = await getDashboardStatus();
-    res.json(
-      status.volatility || {
-        currentPrice: 0.15,
-        realizedVolatility: 0,
-        volatilityClassification: "STABLE",
-      },
-    );
-  } catch (error) {
-    console.error("✗ /api/volatility failed:", error);
-    res.status(500).json({ error: "Failed to get volatility" });
+    res.json(agentStatus.lastDecision);
+  } catch (err) {
+    console.error("❌ /api/decision error:", err);
+    res.status(500).json({ error: "Failed to get decision" });
   }
 });
 
 /**
  * POST /api/agent/run
+ * Triggers one autonomous cycle manually
  */
 app.post("/api/agent/run", async (_req: Request, res: Response) => {
   try {
-    if (getLoopingStatus()) {
+    if (agentStatus.isRunning) {
       return res.status(429).json({ error: "Agent already running" });
     }
 
-    const result = await runAutonomousCycle();
+    console.log("⚡ Manual cycle triggered via API");
+    agentStatus.isRunning = true;
 
-    broadcastToClients({
-      type: "decision",
-      data: result,
-      timestamp: new Date(),
+    const decision = await runAutonomousCycle();
+    agentStatus.lastDecision = decision;
+    agentStatus.cycleCount++;
+
+    if (
+      decision.threat === "HIGH" ||
+      decision.threat === "CRITICAL"
+    ) {
+      agentStatus.threatsDetected++;
+    }
+
+    agentStatus.isRunning = false;
+
+    broadcastDecision(decision);
+    broadcastStatus();
+
+    res.json({
+      success: true,
+      decision,
+      cycleCount: agentStatus.cycleCount,
     });
-
-    const status = await getDashboardStatus();
-    broadcastToClients({
-      type: "status",
-      data: status,
-      timestamp: new Date(),
-    });
-
-    res.json(result);
-  } catch (error) {
-    console.error("✗ /api/agent/run failed:", error);
+  } catch (err) {
+    agentStatus.isRunning = false;
+    console.error("❌ /api/agent/run error:", err);
     res.status(500).json({
-      error: "Failed to run agent",
-      details: error instanceof Error ? error.message : "unknown",
+      error: "Failed to run agent cycle",
+      details: err instanceof Error ? err.message : "unknown",
     });
   }
 });
 
 /**
  * POST /api/agent/chat
+ * Chat interface - ask SENTINEL questions
  */
 app.post("/api/agent/chat", async (req: Request, res: Response) => {
   try {
@@ -200,115 +238,182 @@ app.post("/api/agent/chat", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Message required" });
     }
 
+    if (message.length > 500) {
+      return res.status(400).json({ error: "Message too long (max 500 chars)" });
+    }
+
+    console.log(`💬 Chat request: ${message}`);
     const response = await runChatCycle(message);
-    res.json({ response });
-  } catch (error) {
-    console.error("✗ /api/agent/chat failed:", error);
+
+    res.json({
+      userMessage: message,
+      agentResponse: response,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("❌ /api/agent/chat error:", err);
     res.status(500).json({
       error: "Failed to process chat",
-      details: error instanceof Error ? error.message : "unknown",
+      details: err instanceof Error ? err.message : "unknown",
     });
   }
 });
 
 /**
- * GET /api/decisions
+ * GET /api/stats
+ * Returns statistics about agent performance
  */
-app.get("/api/decisions", async (_req: Request, res: Response) => {
+app.get("/api/stats", (_req: Request, res: Response) => {
   try {
-    const decisions = getRecentDecisions();
-    res.json(decisions);
-  } catch (error) {
-    console.error("✗ /api/decisions failed:", error);
-    res.status(500).json({ error: "Failed to get decisions" });
+    res.json({
+      cycleCount: agentStatus.cycleCount,
+      threatsDetected: agentStatus.threatsDetected,
+      connectedClients: connectedClients.size,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("❌ /api/stats error:", err);
+    res.status(500).json({ error: "Failed to get stats" });
   }
 });
 
 /**
  * GET /api/health
+ * Health check endpoint
  */
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
-    status: "operational",
+    status: "healthy",
     timestamp: new Date().toISOString(),
-    connectedClients: connectedClients.size,
+    uptime: process.uptime(),
   });
 });
 
+/**
+ * GET / (root)
+ * Serves dashboard
+ */
+app.get("/", (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "../../frontend/index.html"));
+});
+
 // ════════════════════════════════════════════════════════════════
-// SERVER STARTUP
+// SERVER STARTUP AND AUTONOMOUS LOOP
 // ════════════════════════════════════════════════════════════════
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
-const MONITORING_INTERVAL = parseInt(process.env.MONITORING_INTERVAL_MS || "60000", 10);
+const MONITORING_INTERVAL_MS = parseInt(
+  process.env.MONITORING_INTERVAL_MS || "60000",
+  10,
+);
 
 async function startServer() {
   try {
-    console.log("🚀 SENTINEL Server Starting...\n");
+    console.log("\n🚀 ════════════════════════════════════════════════════");
+    console.log("   SENTINEL Agent Server Initializing");
+    console.log("   ════════════════════════════════════════════════════\n");
 
     // Initialize Hedera client
-    console.log("📡 Initializing Hedera network...");
-    await initializeHederaClient();
-    await getOrCreateTopic();
-
-    // Warm up price history
-    console.log("📈 Warming up price history...");
-    await warmupPriceHistory(5);
+    console.log("📡 Initializing Hedera Hashgraph client...");
+    try {
+      getHederaClient();
+      console.log("✓ Hedera client ready\n");
+    } catch (err) {
+      console.warn(
+        "⚠  Hedera client initialization warning (non-critical):",
+        err instanceof Error ? err.message : "unknown",
+      );
+    }
 
     // Start HTTP server
     server.listen(PORT, () => {
-      console.log(`\n✓ SENTINEL running on http://localhost:${PORT}`);
-      console.log(`📊 Dashboard: http://localhost:${PORT}`);
-      console.log(`⚙  API: http://localhost:${PORT}/api`);
+      console.log(`✓ Server listening on http://localhost:${PORT}`);
+      console.log(`📊 Dashboard: http://localhost:${PORT}/`);
+      console.log(`⚙  API: http://localhost:${PORT}/api/status`);
       console.log(`🔌 WebSocket: ws://localhost:${PORT}\n`);
     });
 
     // Start autonomous monitoring loop
-    console.log(`⏱  Monitoring every ${MONITORING_INTERVAL}ms...\n`);
+    console.log(
+      `⏱  Starting autonomous monitoring loop (${MONITORING_INTERVAL_MS}ms interval)\n`,
+    );
+    console.log("════════════════════════════════════════════════════\n");
 
     setInterval(async () => {
       try {
-        const result = await runAutonomousCycle();
+        agentStatus.isRunning = true;
+        console.log(`⚡ [Cycle #${agentStatus.cycleCount + 1}] Starting autonomous cycle...`);
 
-        broadcastToClients({
-          type: "decision",
-          data: result,
-          timestamp: new Date(),
-        });
+        const decision = await runAutonomousCycle();
+        agentStatus.lastDecision = decision;
+        agentStatus.cycleCount++;
 
-        const status = await getDashboardStatus();
-        broadcastToClients({
-          type: "status",
-          data: status,
-          timestamp: new Date(),
-        });
-      } catch (error) {
-        console.error("✗ Cycle error:", error);
-        broadcastToClients({
-          type: "error",
-          data: {
-            message: error instanceof Error ? error.message : "Unknown error",
-          },
-          timestamp: new Date(),
-        });
+        // Track threats
+        if (decision.threat === "HIGH" || decision.threat === "CRITICAL") {
+          agentStatus.threatsDetected++;
+          console.log(`🚨 [Threat Detected] ${decision.threat} threat level`);
+        }
+
+        console.log(`✓ [Cycle #${agentStatus.cycleCount}] Decision: ${decision.action}`);
+
+        // Broadcast to all connected clients
+        broadcastDecision(decision);
+        broadcastStatus();
+
+        agentStatus.isRunning = false;
+      } catch (err) {
+        agentStatus.isRunning = false;
+        console.error(
+          "❌ Autonomous cycle error:",
+          err instanceof Error ? err.message : "unknown",
+        );
+
+        broadcastStatus();
       }
-    }, MONITORING_INTERVAL);
-  } catch (error) {
-    console.error("✗ Failed to start server:", error);
+    }, MONITORING_INTERVAL_MS);
+  } catch (err) {
+    console.error("❌ Failed to start server:", err);
     process.exit(1);
   }
 }
 
-// Graceful shutdown
+// ════════════════════════════════════════════════════════════════
+// GRACEFUL SHUTDOWN
+// ════════════════════════════════════════════════════════════════
+
 process.on("SIGINT", () => {
-  console.log("\n👋 Shutting down SENTINEL...");
+  console.log("\n👋 Received shutdown signal");
+  console.log(`📊 Final stats: ${agentStatus.cycleCount} cycles, ${agentStatus.threatsDetected} threats detected`);
+
+  // Close all WebSocket connections
+  connectedClients.forEach((client) => {
+    client.close();
+  });
+
   server.close(() => {
-    console.log("✓ Server closed");
+    console.log("✓ Server closed gracefully");
+    process.exit(0);
+  });
+
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.log("❌ Forced shutdown (timeout)");
+    process.exit(1);
+  }, 10000);
+});
+
+process.on("SIGTERM", () => {
+  console.log("\n👋 Received terminate signal");
+  server.close(() => {
+    console.log("✓ Server terminated");
     process.exit(0);
   });
 });
 
-// Start
+// ════════════════════════════════════════════════════════════════
+// START!
+// ════════════════════════════════════════════════════════════════
+
 startServer();
 
-export default server;

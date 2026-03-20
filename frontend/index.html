@@ -4,8 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SENTINEL — Geopolitical Vault Keeper</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* ════════════════════════════════════════════════════════════════
+       RESET & BASE STYLES
+       ════════════════════════════════════════════════════════════════ */
     * {
       margin: 0;
       padding: 0;
@@ -15,202 +18,399 @@
     html, body {
       width: 100%;
       height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
-      background: #f8f9fb;
-      color: #1f2937;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      background: #050810;
+      color: #e2e8f0;
       overflow-x: hidden;
       scroll-behavior: smooth;
     }
 
-    .container {
+    /* ════════════════════════════════════════════════════════════════
+       DESIGN SYSTEM COLORS (CSS Variables)
+       ════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg-base: #050810;
+      --bg-l1: #0a0f1e;
+      --bg-l2: #0d1526;
+      --bg-l3: #111d35;
+      --border-light: rgba(99, 179, 237, 0.12);
+      --accent-blue: #63b3ed;
+      --accent-purple: #9f7aea;
+      --accent-cyan: #00d2ff;
+      --accent-green: #43e97b;
+      --warning-amber: #f6ad55;
+      --danger-red: #fc8181;
+      --critical-red: #ff4757;
+      --text-primary: #e2e8f0;
+      --text-secondary: #718096;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       AMBIENT BACKGROUND EFFECTS
+       ════════════════════════════════════════════════════════════════ */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(90deg, transparent 24%, rgba(99, 179, 237, 0.05) 25%, rgba(99, 179, 237, 0.05) 26%, transparent 27%, transparent 74%, rgba(99, 179, 237, 0.05) 75%, rgba(99, 179, 237, 0.05) 76%, transparent 77%, transparent),
+        linear-gradient(0deg, transparent 24%, rgba(99, 179, 237, 0.05) 25%, rgba(99, 179, 237, 0.05) 26%, transparent 27%, transparent 74%, rgba(99, 179, 237, 0.05) 75%, rgba(99, 179, 237, 0.05) 76%, transparent 77%, transparent);
+      background-size: 50px 50px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .orb-blue {
+      width: 400px;
+      height: 400px;
+      background: #63b3ed;
+      top: 10%;
+      left: -100px;
+    }
+
+    .orb-purple {
+      width: 350px;
+      height: 350px;
+      background: #9f7aea;
+      top: 50%;
+      right: -75px;
+    }
+
+    .orb-cyan {
+      width: 380px;
+      height: 380px;
+      background: #00d2ff;
+      bottom: 5%;
+      left: 15%;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       LAYOUT: MAIN STRUCTURE
+       ════════════════════════════════════════════════════════════════ */
+    main {
+      display: flex;
+      height: 100vh;
       position: relative;
       z-index: 1;
-      max-width: 2000px;
-      margin: 0 auto;
-      padding: 2rem 2.5rem;
     }
 
-    /* ═══════════════════════════════════ HEADER ═══════════════════════════════════ */
-    header {
+    /* ════════════════════════════════════════════════════════════════
+       SIDEBAR NAVIGATION
+       ════════════════════════════════════════════════════════════════ */
+    aside {
+      width: 260px;
+      background: rgba(10, 15, 30, 0.8);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid var(--border-light);
+      padding: 1.5rem 1rem;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 3rem;
-      padding: 1.5rem 2rem;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      flex-direction: column;
+      gap: 2rem;
+      overflow-y: auto;
+      transition: width 0.3s ease, transform 0.3s ease;
     }
 
-    .header-left { display: flex; align-items: center; gap: 2rem; }
-
-    .logo {
-      font-size: 1.8rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
-      background-clip: text;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .sidebar-logo {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
     }
 
-    .logo-emoji { 
+    .sidebar-logo-icon {
       font-size: 1.5rem;
-      background: none;
-      -webkit-text-fill-color: unset;
     }
 
-    .subtitle {
-      font-size: 0.75rem;
-      color: #6b7280;
+    .sidebar-logo-text {
+      font-size: 1.1rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
       letter-spacing: 0.5px;
+    }
+
+    .sidebar-subtitle {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
       text-transform: uppercase;
+      letter-spacing: 0.5px;
       font-weight: 600;
     }
 
-    .header-right { display: flex; align-items: center; gap: 1.5rem; }
+    .nav-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
 
-    .status-indicator {
+    .nav-section-title {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      padding: 0.5rem 0.75rem;
+      opacity: 0.7;
+    }
+
+    .nav-link {
+      padding: 0.75rem 0.75rem;
+      border-radius: 6px;
+      border-left: 3px solid transparent;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .nav-link:hover {
+      background: rgba(99, 179, 237, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .nav-link.active {
+      border-left-color: var(--accent-blue);
+      background: rgba(99, 179, 237, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .sidebar-status {
+      background: rgba(13, 21, 38, 0.6);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.8rem;
+      margin-top: auto;
+    }
+
+    .status-row {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.5rem 1rem;
-      background: #f0f9ff;
-      border: 1px solid #bfdbfe;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      letter-spacing: 0;
-      color: #1e40af;
-      text-transform: uppercase;
+      margin-bottom: 0.5rem;
     }
 
-    .status-indicator:hover {
-      background: #e0f2fe;
-      border-color: #7dd3fc;
-    }
-
-    .ws-dot {
-      width: 8px;
-      height: 8px;
+    .status-dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: #ef4444;
-      box-shadow: 0 0 4px #ef4444;
+      background: var(--danger-red);
+      animation: statusPulse 2s ease-in-out infinite;
     }
 
-    .ws-dot.connected {
-      background: #10b981;
-      box-shadow: 0 0 4px #10b981;
+    .status-dot.connected {
+      background: var(--accent-green);
     }
 
-    /* ═══════════════════════════════════ BUTTON ═══════════════════════════════════ */
-    button {
-      padding: 0.625rem 1.25rem;
-      background: #2563eb;
+    @keyframes statusPulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .sidebar-cycle-btn {
+      width: 100%;
+      padding: 0.75rem 0;
+      margin-top: 0.75rem;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%);
       border: none;
-      border-radius: 8px;
-      color: white;
-      font-weight: 600;
-      font-family: inherit;
-      font-size: 0.875rem;
-      letter-spacing: 0;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
-      overflow: hidden;
-      text-transform: none;
-    }
-
-    button:hover:not(:disabled) {
-      background: #1d4ed8;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-    }
-    button:active:not(:disabled) { transform: translateY(0); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* ═══════════════════════════════════ THREAT BANNER ═══════════════════════════════════ */
-    .threat-banner {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 1.5rem 2rem;
-      border-radius: 12px;
-      margin-bottom: 2rem;
-      border-left: 4px solid;
-      transition: all 0.3s ease;
-      background: white;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .threat-banner.low {
-      background: #f0fdf4;
-      border-left-color: #10b981;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .threat-banner.medium {
-      background: #fffbeb;
-      border-left-color: #f59e0b;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .threat-banner.high {
-      background: #fef2f2;
-      border-left-color: #ef4444;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .threat-banner.critical {
-      background: #fef2f2;
-      border-left-color: #dc2626;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .threat-left { display: flex; gap: 1.5rem; align-items: center; flex: 1; }
-
-    .threat-badge {
-      padding: 0.5rem 0.75rem;
       border-radius: 6px;
+      color: white;
       font-size: 0.75rem;
       font-weight: 700;
-      letter-spacing: 0.5px;
       text-transform: uppercase;
-      background: transparent;
-      border: 1.5px solid;
-      white-space: nowrap;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'JetBrains Mono', monospace;
+      position: relative;
+      overflow: hidden;
     }
 
-    .threat-badge.low { background: #dcfce7; color: #166534; border-color: #10b981; }
-    .threat-badge.medium { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
-    .threat-badge.high { background: #fee2e2; color: #991b1b; border-color: #ef4444; }
-    .threat-badge.critical { background: #fee2e2; color: #7f1d1d; border-color: #dc2626; }
+    .sidebar-cycle-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(99, 179, 237, 0.4);
+    }
 
-    .threat-text h2 {
-      font-size: 1.5rem;
-      margin-bottom: 0.25rem;
-      letter-spacing: 0;
+    .sidebar-cycle-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      animation: cyclePulse 1.5s ease-out infinite;
+    }
+
+    @keyframes cyclePulse {
+      0% {
+        width: 0;
+        height: 0;
+        opacity: 1;
+      }
+      100% {
+        width: 50px;
+        height: 50px;
+        opacity: 0;
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       MAIN CONTENT AREA
+       ════════════════════════════════════════════════════════════════ */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .content-wrapper {
+      padding: 2rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       CARD COMPONENT
+       ════════════════════════════════════════════════════════════════ */
+    .card {
+      background: rgba(10, 15, 30, 0.5);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(99, 179, 237, 0.05) 0%, transparent 50%);
+      pointer-events: none;
+      border-radius: 12px;
+    }
+
+    .card:hover {
+      border-color: rgba(99, 179, 237, 0.3);
+      background: rgba(13, 21, 38, 0.6);
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 1rem;
       font-weight: 700;
-      color: #1f2937;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
-    .threat-text p {
+    /* ════════════════════════════════════════════════════════════════
+       THREAT COMMAND CENTER (Section 1: 2-Column)
+       ════════════════════════════════════════════════════════════════ */
+    .threat-center {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    .threat-left {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .threat-level-display {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+
+    .threat-score {
       font-size: 0.9rem;
-      color: #4b5563;
-      line-height: 1.5;
-      max-width: 500px;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .threat-status-line {
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+    }
+
+    .threat-tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .threat-tag {
+      display: inline-block;
+      padding: 0.3rem 0.6rem;
+      background: rgba(99, 179, 237, 0.15);
+      border: 1px solid rgba(99, 179, 237, 0.3);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .threat-timestamp {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 0.75rem;
+    }
+
+    .threat-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
     }
 
     .threat-ring {
-      width: 120px;
-      height: 120px;
+      width: 200px;
+      height: 200px;
       position: relative;
-      flex-shrink: 0;
     }
 
     .threat-ring svg {
@@ -218,110 +418,253 @@
       height: 100%;
     }
 
-    .threat-ring-circle { fill: none; stroke-width: 6; stroke-linecap: round; transition: all 0.3s ease; }
-
-    /* ═══════════════════════════════════ GRIDS & CARDS ═══════════════════════════════════ */
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
+    .threat-arc-bg {
+      fill: none;
+      stroke: rgba(99, 179, 237, 0.1);
+      stroke-width: 8;
+      stroke-linecap: round;
     }
 
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
+    .threat-arc {
+      fill: none;
+      stroke: var(--accent-blue);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: 314;
+      stroke-dashoffset: 0;
+      transition: all 0.5s ease;
     }
 
-    .card {
-      background: white;
-      border: 1px solid #e5e7eb;
+    .threat-arc.critical {
+      stroke: var(--critical-red);
+    }
+
+    .threat-arc.high {
+      stroke: var(--danger-red);
+    }
+
+    .threat-arc.medium {
+      stroke: var(--warning-amber);
+    }
+
+    .threat-arc.low {
+      stroke: var(--accent-green);
+    }
+
+    .threat-ring-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .threat-percentage {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent-blue);
+    }
+
+    .threat-recommend {
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      text-align: center;
+      padding: 0.75rem;
+      background: rgba(159, 122, 234, 0.1);
+      border-radius: 6px;
+      border-left: 3px solid var(--accent-purple);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       METRICS ROW (Section 2: 4-Column Grid)
+       ════════════════════════════════════════════════════════════════ */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+    }
+
+    .metric-card {
+      background: rgba(13, 21, 38, 0.5);
+      border: 1px solid var(--border-light);
       border-radius: 12px;
-      padding: 1.5rem;
-      transition: all 0.2s ease;
+      padding: 1.25rem;
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .metric-card:hover {
+      border-color: rgba(99, 179, 237, 0.3);
+      background: rgba(13, 21, 38, 0.6);
+    }
+
+    .metric-icon {
+      font-size: 1.5rem;
+    }
+
+    .metric-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent-blue);
+      line-height: 1;
+    }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .metric-badge {
+      display: inline-block;
+      padding: 0.3rem 0.6rem;
+      background: rgba(67, 233, 123, 0.15);
+      border: 1px solid rgba(67, 233, 123, 0.3);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      color: var(--accent-green);
+      font-weight: 600;
+      align-self: flex-start;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       VOLATILITY PANEL (Section 3: 3-Column)
+       ════════════════════════════════════════════════════════════════ */
+    .volatility-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    .vol-gauge {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .gauge-svg {
+      width: 100%;
+      height: 150px;
+    }
+
+    .price-chart-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .chart-svg {
+      width: 100%;
+      height: 150px;
+    }
+
+    .chart-value {
+      font-size: 0.9rem;
+      color: var(--text-primary);
+    }
+
+    .regime-stacks {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .regime-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .regime-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      min-width: 60px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .regime-bar {
+      flex: 1;
+      height: 24px;
+      background: rgba(0, 210, 255, 0.15);
+      border-radius: 4px;
+      border: 1px solid rgba(0, 210, 255, 0.3);
       position: relative;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    .card:hover {
-      border-color: #d1d5db;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    .regime-fill {
+      height: 100%;
+      background: var(--accent-cyan);
+      border-radius: 4px;
+      transition: width 0.4s ease;
     }
 
-    .card-title {
-      font-size: 0.875rem;
-      color: #1f2937;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 1rem;
+    .regime-percentage {
+      font-size: 0.7rem;
+      color: var(--text-primary);
       font-weight: 700;
+      min-width: 35px;
+      text-align: right;
     }
 
-    .stat-value {
-      font-size: 2rem;
-      font-weight: 700;
-      color: #1f2937;
-      margin-bottom: 0.5rem;
-      letter-spacing: 0;
-    }
-
-    .stat-label {
-      font-size: 0.8rem;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      font-weight: 500;
-    }
-
-    .stat-change {
-      font-size: 0.85rem;
-      margin-top: 0.75rem;
-      padding: 0.4rem 0.75rem;
-      border-radius: 6px;
-      display: inline-block;
-      font-weight: 600;
-      letter-spacing: 0;
-    }
-
-    .stat-change.up { background: #dcfce7; color: #166534; }
-    .stat-change.down { background: #fee2e2; color: #991b1b; }
-
-    /* ═══════════════════════════════════ SCROLLABLE SECTIONS ═══════════════════════════════════ */
-    .scrollable {
-      max-height: 340px;
+    /* ════════════════════════════════════════════════════════════════
+       SIGNAL FEED (Section 4: Scrollable)
+       ════════════════════════════════════════════════════════════════ */
+    .signal-container {
+      background: rgba(13, 21, 38, 0.5);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+      max-height: 400px;
       overflow-y: auto;
-      padding-right: 8px;
     }
 
-    .scrollable::-webkit-scrollbar {
+    .signal-container::-webkit-scrollbar {
       width: 6px;
     }
 
-    .scrollable::-webkit-scrollbar-track {
-      background: #f3f4f6;
+    .signal-container::-webkit-scrollbar-track {
+      background: rgba(99, 179, 237, 0.05);
       border-radius: 10px;
     }
 
-    .scrollable::-webkit-scrollbar-thumb {
-      background: #d1d5db;
+    .signal-container::-webkit-scrollbar-thumb {
+      background: rgba(99, 179, 237, 0.3);
       border-radius: 10px;
     }
 
-    .scrollable::-webkit-scrollbar-thumb:hover {
-      background: #9ca3af;
-    }
-
-    /* ═══════════════════════════════════ SIGNAL FEED ═══════════════════════════════════ */
     .signal-item {
+      display: grid;
+      grid-template-columns: 12px 1fr auto auto;
+      gap: 1rem;
       padding: 0.75rem 0;
-      border-bottom: 1px solid #f3f4f6;
-      display: flex;
-      gap: 0.75rem;
-      font-size: 0.875rem;
-      transition: all 0.2s ease;
+      border-bottom: 1px solid rgba(99, 179, 237, 0.1);
+      align-items: start;
+      animation: slideInLeft 0.4s ease-out;
+    }
+
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
     }
 
     .signal-item:last-child {
@@ -329,228 +672,896 @@
     }
 
     .signal-item:hover {
-      background: #f9fafb;
-      border-radius: 4px;
-      padding-left: 0.5rem;
-      padding-right: 0.5rem;
+      background: rgba(99, 179, 237, 0.05);
+      border-radius: 6px;
+      padding: 0.75rem 0.5rem;
     }
 
     .signal-dot {
-      width: 6px;
-      height: 6px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      margin-top: 6px;
+      margin-top: 2px;
       flex-shrink: 0;
     }
 
-    .signal-dot.critical { background: #dc2626; }
-    .signal-dot.high { background: #f97316; }
-    .signal-dot.medium { background: #f59e0b; }
-    .signal-dot.low { background: #10b981; }
+    .signal-dot.critical {
+      background: var(--critical-red);
+    }
 
-    .signal-content { display: flex; flex-direction: column; gap: 0.25rem; }
-    .signal-text { color: #1f2937; font-weight: 500; }
-    .signal-time { color: #9ca3af; font-size: 0.75rem; }
+    .signal-dot.high {
+      background: var(--danger-red);
+    }
 
-    /* ═══════════════════════════════════ DECISION LOG ═══════════════════════════════════ */
-    .decision-item {
-      padding: 0.75rem;
-      background: transparent;
-      border-radius: 6px;
-      margin-bottom: 0.75rem;
-      border-left: 3px solid;
-      font-size: 0.85rem;
+    .signal-dot.medium {
+      background: var(--warning-amber);
+    }
+
+    .signal-dot.low {
+      background: var(--accent-green);
+    }
+
+    .signal-text {
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+
+    .signal-relevance {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    .signal-time {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       DECISION LOG (Section 5: Timeline)
+       ════════════════════════════════════════════════════════════════ */
+    .decision-container {
+      background: rgba(13, 21, 38, 0.5);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .decision-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .decision-container::-webkit-scrollbar-track {
+      background: rgba(99, 179, 237, 0.05);
+    }
+
+    .decision-container::-webkit-scrollbar-thumb {
+      background: rgba(99, 179, 237, 0.3);
+      border-radius: 3px;
+    }
+
+    .decision-timeline {
+      position: relative;
+      padding-left: 2rem;
+    }
+
+    .decision-timeline::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(99, 179, 237, 0.2);
+    }
+
+    .decision-node {
+      position: relative;
+      padding-bottom: 1.5rem;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .decision-node::before {
+      content: '';
+      position: absolute;
+      left: -0.7rem;
+      top: 0.15rem;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      border: 2px solid var(--bg-base);
+      transition: all 0.3s ease;
+    }
+
+    .decision-node.HOLD::before {
+      background: var(--accent-green);
+    }
+
+    .decision-node.HARVEST::before {
+      background: var(--accent-blue);
+    }
+
+    .decision-node.WITHDRAW::before {
+      background: var(--warning-amber);
+    }
+
+    .decision-node.EMERGENCY_EXIT::before {
+      background: var(--critical-red);
+    }
+
+    .decision-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(99, 179, 237, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .decision-badge.HOLD {
+      background: rgba(67, 233, 123, 0.15);
+      color: var(--accent-green);
+    }
+
+    .decision-badge.HARVEST {
+      background: rgba(99, 179, 237, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .decision-badge.WITHDRAW {
+      background: rgba(246, 173, 85, 0.15);
+      color: var(--warning-amber);
+    }
+
+    .decision-badge.EMERGENCY_EXIT {
+      background: rgba(255, 71, 87, 0.15);
+      color: var(--critical-red);
+    }
+
+    .decision-time {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      margin-left: 0.5rem;
+    }
+
+    .decision-reason {
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      margin-top: 0.5rem;
+      line-height: 1.4;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       HCS AUDIT TRAIL (Section 6: Table)
+       ════════════════════════════════════════════════════════════════ */
+    .audit-table-wrapper {
+      background: rgba(13, 21, 38, 0.5);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+
+    .audit-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .audit-table thead {
+      background: rgba(99, 179, 237, 0.1);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .audit-table th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      color: var(--accent-blue);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 0.7rem;
+    }
+
+    .audit-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(99, 179, 237, 0.1);
+      color: var(--text-primary);
+    }
+
+    .audit-table tbody tr {
       transition: all 0.2s ease;
     }
 
-    .decision-item:hover {
-      background: #f9fafb;
+    .audit-table tbody tr:hover {
+      background: rgba(99, 179, 237, 0.05);
     }
 
-    .decision-item.HOLD { border-left-color: #10b981; }
-    .decision-item.HARVEST { border-left-color: #2563eb; }
-    .decision-item.WITHDRAW { border-left-color: #f59e0b; }
-    .decision-item.EMERGENCY_EXIT { border-left-color: #dc2626; }
+    .audit-table tbody tr:first-child td {
+      border-left: 3px solid var(--accent-blue);
+    }
 
-    .decision-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-
-    .decision-badge {
-      padding: 0.3rem 0.6rem;
-      border-radius: 4px;
+    .audit-seq {
+      color: var(--accent-blue);
       font-weight: 700;
+    }
+
+    .audit-link {
+      color: var(--accent-cyan);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-weight: 600;
+    }
+
+    .audit-link:hover {
+      text-decoration: underline;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       AGENT CHAT (Section 7: 2-Column)
+       ════════════════════════════════════════════════════════════════ */
+    .chat-grid {
+      display: grid;
+      grid-template-columns: 0.8fr 1.2fr;
+      gap: 1.5rem;
+    }
+
+    .chat-left {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .quick-buttons-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+
+    .quick-btn {
+      padding: 0.6rem 0.75rem;
+      background: rgba(99, 179, 237, 0.1);
+      border: 1px solid rgba(99, 179, 237, 0.2);
+      border-radius: 6px;
+      color: var(--accent-blue);
       font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: 'JetBrains Mono', monospace;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
-    .decision-badge.HOLD { background: #dcfce7; color: #166534; }
-    .decision-badge.HARVEST { background: #dbeafe; color: #1e40af; }
-    .decision-badge.WITHDRAW { background: #fef3c7; color: #92400e; }
-    .decision-badge.EMERGENCY_EXIT { background: #fee2e2; color: #991b1b; }
+    .quick-btn:hover {
+      background: rgba(99, 179, 237, 0.2);
+      border-color: rgba(99, 179, 237, 0.4);
+      transform: translateY(-2px);
+    }
 
-    .decision-time { color: #9ca3af; font-size: 0.75rem; }
-    .decision-reason { color: #4b5563; margin-top: 0.5rem; line-height: 1.4; }
-
-    /* ═══════════════════════════════════ CHAT ═══════════════════════════════════ */
-    .chat-container {
+    .agent-status-panel {
+      background: rgba(13, 21, 38, 0.5);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1rem;
+      backdrop-filter: blur(12px);
       display: flex;
       flex-direction: column;
-      height: 420px;
       gap: 0.75rem;
     }
 
-    .quick-buttons {
+    .status-item {
       display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-bottom: 0.75rem;
-    }
-
-    .quick-btn {
-      padding: 0.4rem 0.75rem;
+      justify-content: space-between;
+      align-items: center;
       font-size: 0.75rem;
-      background: white;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      color: #1f2937;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-weight: 600;
-      text-transform: none;
-      letter-spacing: 0;
     }
 
-    .quick-btn:hover {
-      background: #f9fafb;
-      border-color: #9ca3af;
-      transform: translateY(-1px);
+    .status-label {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-value {
+      color: var(--accent-blue);
+      font-weight: 700;
+    }
+
+    .chat-right {
+      display: flex;
+      flex-direction: column;
     }
 
     .chat-messages {
       flex: 1;
-      overflow-y: auto;
-      border: 1px solid #e5e7eb;
+      background: rgba(13, 21, 38, 0.5);
+      border: 1px solid var(--border-light);
       border-radius: 8px;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
       padding: 1rem;
-      background: #fafbfc;
-      margin-bottom: 0.75rem;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
+      min-height: 250px;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: rgba(99, 179, 237, 0.05);
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: rgba(99, 179, 237, 0.3);
+      border-radius: 3px;
     }
 
     .chat-message {
-      margin-bottom: 0;
+      display: flex;
+      gap: 0.75rem;
+      animation: slideInLeft 0.3s ease-out;
     }
 
-    .chat-message.user { text-align: right; }
+    .chat-message.user {
+      justify-content: flex-end;
+    }
+
+    .chat-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .chat-avatar.user {
+      background: rgba(99, 179, 237, 0.2);
+    }
+
+    .chat-avatar.assistant {
+      background: rgba(159, 122, 234, 0.2);
+    }
 
     .chat-bubble {
-      display: inline-block;
+      max-width: 75%;
       padding: 0.6rem 0.85rem;
       border-radius: 8px;
-      font-size: 0.85rem;
-      max-width: 85%;
-      word-wrap: break-word;
+      font-size: 0.8rem;
       line-height: 1.4;
-      font-weight: 500;
+      word-wrap: break-word;
     }
 
     .chat-message.user .chat-bubble {
-      background: #2563eb;
-      color: white;
-      border-radius: 14px 4px 14px 14px;
+      background: rgba(99, 179, 237, 0.2);
+      color: var(--accent-blue);
+      border-radius: 8px 2px 8px 8px;
     }
 
     .chat-message.assistant .chat-bubble {
-      background: #f3f4f6;
-      color: #1f2937;
-      border-radius: 4px 14px 14px 14px;
+      background: rgba(159, 122, 234, 0.2);
+      color: var(--accent-purple);
+      border-radius: 2px 8px 8px 8px;
     }
 
     .chat-input-group {
       display: flex;
       gap: 0.5rem;
+      background: rgba(10, 15, 30, 0.5);
+      border: 1px solid var(--border-light);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 0.75rem;
+      backdrop-filter: blur(12px);
     }
 
     .chat-input {
       flex: 1;
-      padding: 0.6rem 0.85rem;
-      background: white;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      color: #1f2937;
-      font-family: inherit;
-      font-size: 0.875rem;
-      transition: all 0.2s ease;
-    }
-
-    .chat-input::placeholder {
-      color: #9ca3af;
-    }
-
-    .chat-input:focus {
-      outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-    }
-
-    /* ═══════════════════════════════════ HCS AUDIT ═══════════════════════════════════ */
-    .hcs-audit { grid-column: 1 / -1; }
-
-    .hcs-item {
-      padding: 0.75rem;
-      background: transparent;
-      border-left: 3px solid #7c3aed;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(99, 179, 237, 0.15);
       border-radius: 6px;
-      margin-bottom: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.8rem;
       transition: all 0.2s ease;
     }
 
-    .hcs-item:hover {
-      background: #f9fafb;
+    .chat-input::placeholder {
+      color: var(--text-secondary);
     }
 
-    .hcs-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-weight: 700; }
-    .hcs-seq { color: #7c3aed; font-family: inherit; }
+    .chat-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      background: rgba(99, 179, 237, 0.05);
+    }
 
-    .hcs-link {
-      color: #2563eb;
-      text-decoration: none;
+    .chat-send-btn {
+      padding: 0.6rem 1rem;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s ease;
-      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-family: 'JetBrains Mono', monospace;
     }
 
-    .hcs-link:hover { text-decoration: underline; color: #1d4ed8; }
-    .hcs-details { color: #4b5563; line-height: 1.4; }
-
-    /* ═══════════════════════════════════ RESPONSIVE ═══════════════════════════════════ */
-    @media (max-width: 1024px) {
-      .grid-2 { grid-template-columns: 1fr; }
-      header { flex-direction: column; gap: 1rem; }
-      .header-left { width: 100%; }
-      .header-right { width: 100%; justify-content: space-between; }
+    .chat-send-btn:hover {
+      transform: translateY(-1px);
     }
 
+    .chat-send-btn:active {
+      transform: translateY(0);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       RESPONSIVE DESIGN
+       ════════════════════════════════════════════════════════════════ */
+    
+    /* 1200px: Sidebar collapses to icons */
+    @media (max-width: 1200px) {
+      aside {
+        width: 48px;
+        padding: 1rem 0.5rem;
+        align-items: center;
+      }
+
+      .sidebar-logo,
+      .sidebar-subtitle,
+      .nav-section-title,
+      .nav-link span:last-child,
+      .sidebar-status,
+      .sidebar-cycle-btn {
+        display: none;
+      }
+
+      .nav-link {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+      }
+
+      .nav-link span:first-child {
+        display: block;
+      }
+
+      .threat-center {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .volatility-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 900px: Full mobile menu */
+    @media (max-width: 900px) {
+      main {
+        flex-direction: column;
+      }
+
+      aside {
+        width: 100%;
+        height: auto;
+        padding: 1rem;
+        display: none;
+        flex-direction: row;
+        gap: 1rem;
+      }
+
+      aside.mobile-open {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .content-wrapper {
+        padding: 1.5rem;
+      }
+
+      .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .volatility-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-buttons-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 640px: Mobile */
     @media (max-width: 640px) {
-      .container { padding: 1rem 1.25rem; }
-      header { padding: 1rem; }
-      .logo { font-size: 1.3rem; }
-      .logo-emoji { font-size: 1.1rem; }
-      .threat-text h2 { font-size: 1.2rem; }
-      .stat-value { font-size: 1.5rem; }
-      .grid-3 { grid-template-columns: 1fr; }
-      button { width: 100%; }
+      .content-wrapper {
+        padding: 1rem;
+        gap: 1.5rem;
+      }
+
+      .card {
+        padding: 1rem;
+      }
+
+      .threat-center {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      .threat-level-display {
+        font-size: 2rem;
+      }
+
+      .metrics-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .metric-value {
+        font-size: 1.5rem;
+      }
+
+      .volatility-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-buttons-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .signal-container,
+      .decision-container {
+        max-height: 300px;
+      }
+
+      .chat-messages {
+        min-height: 200px;
+      }
     }
+
   </style>
 </head>
 <body>
 
-<div class="container">
-  <!-- HEADER -->
-  <header>
+<!-- AMBIENT BACKGROUND ORBS -->
+<div class="ambient-orb orb-blue"></div>
+<div class="ambient-orb orb-purple"></div>
+<div class="ambient-orb orb-cyan"></div>
+
+<main>
+  <!-- SIDEBAR NAVIGATION -->
+  <aside id="sidebar">
+    <div>
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">🛡️</div>
+        <div class="sidebar-logo-text">SENTINEL</div>
+      </div>
+      <div class="sidebar-subtitle">Geopolitical Vault Keeper</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-title">Navigation</div>
+      <a class="nav-link active" data-section="overview" onclick="setActiveNav('overview')">
+        <span>⬡</span>
+        <span>Overview</span>
+      </a>
+      <a class="nav-link" data-section="threat" onclick="setActiveNav('threat')">
+        <span>◈</span>
+        <span>Threat Intel</span>
+      </a>
+      <a class="nav-link" data-section="vault" onclick="setActiveNav('vault')">
+        <span>⬤</span>
+        <span>Vault Status</span>
+      </a>
+      <a class="nav-link" data-section="signals" onclick="setActiveNav('signals')">
+        <span>📡</span>
+        <span>Signals</span>
+      </a>
+      <a class="nav-link" data-section="audit" onclick="setActiveNav('audit')">
+        <span>📜</span>
+        <span>Audit Trail</span>
+      </a>
+      <a class="nav-link" data-section="analytics" onclick="setActiveNav('analytics')">
+        <span>📊</span>
+        <span>Analytics</span>
+      </a>
+    </div>
+
+    <div class="sidebar-status">
+      <div class="status-row">
+        <div class="status-dot" id="wsIndicator"></div>
+        <span id="wsStatus">Connecting...</span>
+      </div>
+      <div class="status-row">
+        <span>Cycles: <strong id="cycleCounter">0</strong></span>
+      </div>
+      <button class="sidebar-cycle-btn" id="runBtn" onclick="runAgentCycle()">▶ Run Cycle</button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+    <div class="content-wrapper">
+
+      <!-- SECTION 1: THREAT COMMAND CENTER -->
+      <div class="card">
+        <div class="card-title">🎯 threat command center</div>
+        <div class="threat-center">
+          <div class="threat-left">
+            <div class="threat-level-display" id="threatLevel">LOW</div>
+            <div class="threat-score" id="threatScore">Score: 15/100</div>
+            <div class="threat-status-line" id="threatStatus">Market conditions stable, monitoring ongoing</div>
+            <div class="threat-tags" id="threatTags">
+              <div class="threat-tag">STABLE_MARKETS</div>
+              <div class="threat-tag">LOW_VOLATILITY</div>
+            </div>
+            <div class="threat-timestamp" id="threatTime">Last updated: now</div>
+          </div>
+          <div class="threat-right">
+            <div class="threat-ring">
+              <svg viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="90" class="threat-arc-bg"/>
+                <circle id="threatArc" cx="100" cy="100" r="90" class="threat-arc low"/>
+              </svg>
+              <div class="threat-ring-center">
+                <div class="threat-percentage" id="threatPercent">15%</div>
+              </div>
+            </div>
+            <div class="threat-recommend" id="threatRecommend">Hold position, conditions favorable</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: METRICS ROW -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon">💰</div>
+          <div class="metric-label">Vault TVL</div>
+          <div class="metric-value" id="metricTVL">$125K</div>
+          <div class="metric-sub" id="metricTVLSub">Total Value Locked</div>
+          <div class="metric-badge">+5.2%</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon">💹</div>
+          <div class="metric-label">HBAR Price</div>
+          <div class="metric-value" id="metricPrice">$0.180</div>
+          <div class="metric-sub" id="metricPriceSub">HBAR/USDC</div>
+          <div class="metric-badge" id="priceBadge">+2.4%</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon">📈</div>
+          <div class="metric-label">APY</div>
+          <div class="metric-value" id="metricAPY">12.8%</div>
+          <div class="metric-sub" id="metricAPYSub">Annualized Yield</div>
+          <div class="metric-badge">Excellent</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon">🔒</div>
+          <div class="metric-label">Safety Score</div>
+          <div class="metric-value" id="metricSafety">95</div>
+          <div class="metric-sub" id="metricSafetySub">Out of 100</div>
+          <div class="metric-badge">Excellent</div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: VOLATILITY PANEL -->
+      <div class="metrics-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="card">
+          <div class="card-title">📊 Volatility Gauge</div>
+          <div class="vol-gauge">
+            <svg class="gauge-svg" viewBox="0 0 200 110">
+              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(99, 179, 237, 0.1)" stroke-width="8" stroke-linecap="round"/>
+              <path id="volatilityNeedle" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--accent-cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="188"/>
+            </svg>
+            <div style="font-size: 0.8rem; color: var(--text-primary); text-align: center;">
+              <span id="volValue">0.34</span> p.a.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📉 Price History</div>
+          <div class="price-chart-container">
+            <svg class="chart-svg" viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" style="stop-color:#63b3ed;stop-opacity:0.4" />
+                  <stop offset="100%" style="stop-color:#63b3ed;stop-opacity:0.05" />
+                </linearGradient>
+              </defs>
+              <polyline id="priceChart" points="10,70 40,60 70,55 100,65 130,50 160,45 190,60" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linejoin="round"/>
+              <polygon id="priceChartFill" points="10,70 40,60 70,55 100,65 130,50 160,45 190,60 190,100 10,100" fill="url(#priceGradient)"/>
+            </svg>
+            <div class="chart-value" id="chartVal">24H: +2.4%</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🎛️ Market Regime</div>
+          <div class="regime-stacks">
+            <div class="regime-item">
+              <div class="regime-label">Stable</div>
+              <div class="regime-bar">
+                <div class="regime-fill" style="width: 65%; background: var(--accent-green);"></div>
+              </div>
+              <div class="regime-percentage">65%</div>
+            </div>
+            <div class="regime-item">
+              <div class="regime-label">Volatile</div>
+              <div class="regime-bar">
+                <div class="regime-fill" style="width: 25%; background: var(--warning-amber);"></div>
+              </div>
+              <div class="regime-percentage">25%</div>
+            </div>
+            <div class="regime-item">
+              <div class="regime-label">Extreme</div>
+              <div class="regime-bar">
+                <div class="regime-fill" style="width: 10%; background: var(--critical-red);"></div>
+              </div>
+              <div class="regime-percentage">10%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4 & 5: SIGNALS & DECISIONS (2-Column) -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div class="card">
+          <div class="card-title">📡 Signal Feed</div>
+          <div class="signal-container" id="signalFeed">
+            <div class="signal-item">
+              <div class="signal-dot low"></div>
+              <div class="signal-text">Market positive, geopolitical calm maintained</div>
+              <div class="signal-relevance">98%</div>
+              <div class="signal-time">now</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📋 Decision Log</div>
+          <div class="decision-container">
+            <div class="decision-timeline" id="decisionTimeline">
+              <div class="decision-node HOLD">
+                <span class="decision-badge HOLD">HOLD</span>
+                <span class="decision-time">12:00 PM</span>
+                <div class="decision-reason">Position secure, no immediate action required</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 6: HCS AUDIT TRAIL -->
+      <div class="card">
+        <div class="card-title">📜 Hedera Consensus Service Audit</div>
+        <div class="audit-table-wrapper">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>SEQ</th>
+                <th>ACTION</th>
+                <th>THREAT SCORE</th>
+                <th>VOLATILITY</th>
+                <th>TIMESTAMP</th>
+                <th>VERIFY</th>
+              </tr>
+            </thead>
+            <tbody id="auditBody">
+              <tr>
+                <td class="audit-seq">0</td>
+                <td>CYCLE_STARTED</td>
+                <td>15</td>
+                <td>0.34</td>
+                <td>2024-01-15 12:00:00</td>
+                <td><span class="audit-link" onclick="viewHashScan(0)">HashScan →</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 7: AGENT CHAT -->
+      <div class="card">
+        <div class="card-title">💬 Agent Chat Interface</div>
+        <div class="chat-grid">
+          <div class="chat-left">
+            <div>
+              <div class="card-title" style="margin-bottom: 0.75rem;">Quick Actions</div>
+              <div class="quick-buttons-grid">
+                <button class="quick-btn" onclick="sendQuick('What is the current threat level?')">Threat Level?</button>
+                <button class="quick-btn" onclick="sendQuick('Check vault status')">Vault Status</button>
+                <button class="quick-btn" onclick="sendQuick('Harvest rewards')">Harvest Rewards</button>
+                <button class="quick-btn" onclick="sendQuick('Emergency exit conditions')">Emergency Exit</button>
+                <button class="quick-btn" onclick="sendQuick('Market analysis')">Market Analysis</button>
+                <button class="quick-btn" onclick="sendQuick('Risk assessment')">Risk Assessment</button>
+                <button class="quick-btn" onclick="sendQuick('Volatility forecast')">Vol Forecast</button>
+                <button class="quick-btn" onclick="sendQuick('Historical performance')">Performance</button>
+              </div>
+            </div>
+            <div class="agent-status-panel">
+              <div class="status-item">
+                <span class="status-label">Status</span>
+                <span class="status-value" id="agentStatus">Ready</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Cycles</span>
+                <span class="status-value" id="cyclesRun">156</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Win Rate</span>
+                <span class="status-value" id="winRate">87.3%</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Mode</span>
+                <span class="status-value">AUTONOMOUS</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-right">
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-group">
+              <input type="text" class="chat-input" id="chatInput" placeholder="Ask SENTINEL..." onkeypress="handleChatKeypress(event)">
+              <button class="chat-send-btn" onclick="sendMessage()">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
     <div class="header-left">
       <div class="logo">
         <span class="logo-emoji">🛡️</span>
@@ -586,28 +1597,65 @@
     </div>
   </div>
 
+  <!-- VAULT STATUS OVERVIEW -->
+  <div class="card" style="margin-bottom: 2rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #0284c7;">
+    <div class="card-title" style="color: #0c4a6e;">🏦 Vault Quick Status</div>
+    <div class="vault-status">
+      <div class="vault-stat">
+        <div class="vault-stat-label">Total Value</div>
+        <div class="vault-stat-value" id="vaultQuick">$125K</div>
+      </div>
+      <div class="vault-stat">
+        <div class="vault-stat-label">P&L 24H</div>
+        <div class="vault-stat-value" id="vaultPnL" style="color: #10b981;">+$1,240</div>
+      </div>
+      <div class="vault-stat">
+        <div class="vault-stat-label">APY</div>
+        <div class="vault-stat-value" id="vaultAPY">12.8%</div>
+      </div>
+      <div class="vault-stat">
+        <div class="vault-stat-label">Safety Score</div>
+        <div class="vault-stat-value" id="safetyScore" style="color: #f59e0b;">95/100</div>
+      </div>
+    </div>
+  </div>
+
   <!-- STATS GRID -->
   <div class="grid-3">
     <div class="card">
       <div class="card-title">💰 Vault TVL</div>
       <div class="stat-value" id="vaultTVL">$125,000</div>
       <div class="stat-label">Total Value Locked</div>
+      <div class="performance-gauge" style="margin-top: 1rem;">
+        <div class="gauge-fill" style="width: 85%;"></div>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-label">Change:</span>
+        <span class="metric-value" style="color: #10b981;">+5.2%</span>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">💹 HBAR Price</div>
-      <div class="stat-value" id="hbarPrice">$0.180</div>
-      <div class="stat-label">HBAR/USDC Exchange</div>
-      <div id="priceChange" class="stat-change up">↑ +2.4%</div>
+      <div class="hbar-ticker">
+        <span class="arrow" id="priceArrow">📈</span>
+        <span id="hbarPrice">$0.180</span>
+      </div>
+      <div class="stat-label" style="margin-top: 1rem;">HBAR/USDC Exchange</div>
+      <div id="priceChange" class="stat-change up" style="margin-top: 0.75rem;">↑ +2.4%</div>
+      <div class="insight-item" style="margin-top: 0.75rem;">
+        <span class="insight-icon">💡</span> 24H high: $0.187
+      </div>
     </div>
     <div class="card">
       <div class="card-title">📈 Volatility</div>
       <div class="stat-value" id="volatility">0.34</div>
       <div class="stat-label">Annualized (p.a.)</div>
-      <div id="volClass" class="stat-label" style="margin-top: 0.75rem;">Classification: STABLE</div>
+      <div id="volClass" class="status-badge monitoring" style="margin-top: 0.75rem;">Classification: STABLE</div>
+      <div class="mini-chart" id="volChart"></div>
     </div>
   </div>
 
-  <!-- CONTENT GRID -->
+  <!-- ENHANCED CONTENT GRID -->
   <div class="grid-2">
     <div class="card">
       <div class="card-title">📡 Live Signal Feed</div>
@@ -636,6 +1684,22 @@
     </div>
   </div>
 
+  <!-- AGENT INSIGHTS -->
+  <div class="card" style="margin-bottom: 2rem; background: linear-gradient(135deg, #fefce8 0%, #fffbeb 100%);">
+    <div class="card-title">🤖 Agent Insights & Recommendations</div>
+    <div id="agentInsights">
+      <div class="insight-item">
+        <span class="insight-icon">✓</span> Vault position is well-diversified across stable assets
+      </div>
+      <div class="insight-item">
+        <span class="insight-icon">⚠</span> Monitor geopolitical tensions in Eastern regions
+      </div>
+      <div class="insight-item">
+        <span class="insight-icon">📊</span> Consider harvesting rewards in next 24 hours for tax optimization
+      </div>
+    </div>
+  </div>
+
   <!-- BOTTOM ROW -->
   <div class="grid-2">
     <div class="card">
@@ -646,10 +1710,12 @@
           <button class="quick-btn" onclick="sendQuick('Check vault status')">Vault Status</button>
           <button class="quick-btn" onclick="sendQuick('Harvest rewards now')">Harvest Now?</button>
           <button class="quick-btn" onclick="sendQuick('Protect my position')">Protect Position</button>
+          <button class="quick-btn" onclick="sendQuick('Market analysis')">Market Analysis</button>
+          <button class="quick-btn" onclick="sendQuick('Risk assessment')">Risk Assessment</button>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-input-group">
-          <input type="text" class="chat-input" id="chatInput" placeholder="Ask SENTINEL..." onkeypress="handleChatKeypress(event)">
+          <input type="text" class="chat-input" id="chatInput" placeholder="Ask SENTINEL anything..." onkeypress="handleChatKeypress(event)">
           <button onclick="sendMessage()" style="width: auto; min-width: 80px;">Send</button>
         </div>
       </div>
@@ -670,6 +1736,33 @@
     </div>
   </div>
 
+  <!-- FULL-WIDTH ANALYTICS -->
+  <div class="card" style="margin-top: 2rem; background: linear-gradient(135deg, #f8f4ff 0%, #f3e8ff 100%);">
+    <div class="card-title" style="color: #6d28d9;">📊 Performance Analytics</div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div style="padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+        <div style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Win Rate</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #6d28d9; margin-top: 0.5rem;">87.3%</div>
+        <div class="performance-gauge" style="margin-top: 0.5rem;"><div class="gauge-fill" style="width: 87%; background: #8b5cf6;"></div></div>
+      </div>
+      <div style="padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid #ec4899;">
+        <div style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Sharpe Ratio</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #ec4899; margin-top: 0.5rem;">2.14</div>
+        <div style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">Excellent risk-adjusted returns</div>
+      </div>
+      <div style="padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid #06b6d4;">
+        <div style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Max Drawdown</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #06b6d4; margin-top: 0.5rem;">-4.2%</div>
+        <div style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">Well within limits</div>
+      </div>
+      <div style="padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid #10b981;">
+        <div style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Cycles Completed</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #10b981; margin-top: 0.5rem;" id="cyclesCompleted">156</div>
+        <div style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">Last 30 days</div>
+      </div>
+    </div>
+  </div>
+
   <!-- FULL-WIDTH HCS -->
   <div class="card hcs-audit" style="margin-top: 2rem;">
     <div class="card-title" style="margin-bottom: 1.5rem;">📜 Full Audit History</div>
@@ -681,13 +1774,345 @@
 
 <script>
   // ════════════════════════════════════════════════════════════════
-  // WebSocket Management
+  // GLOBAL STATE
   // ════════════════════════════════════════════════════════════════
-
   let ws = null;
   let wsConnected = false;
+  let updateQueue = [];
 
-  function initWebSocket() {
+  // ════════════════════════════════════════════════════════════════
+  // WEBSOCKET MANAGEMENT
+  // ════════════════════════════════════════════════════════════════
+  function connectWS() {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${protocol}://${window.location.host}`;
+    
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log("✓ WebSocket connected");
+      wsConnected = true;
+      updateWSIndicator(true);
+      processUpdateQueue();
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        handleMessage(message);
+      } catch (error) {
+        console.error("✗ Parse error:", error);
+      }
+    };
+    
+    ws.onerror = () => {
+      console.error("✗ WebSocket error");
+      wsConnected = false;
+      updateWSIndicator(false);
+    };
+    
+    ws.onclose = () => {
+      console.log("✗ WebSocket closed");
+      wsConnected = false;
+      updateWSIndicator(false);
+      setTimeout(connectWS, 3000);
+    };
+  }
+
+  function updateWSIndicator(connected) {
+    const indicator = document.getElementById("wsIndicator");
+    const status = document.getElementById("wsStatus");
+    if (connected) {
+      indicator.classList.add("connected");
+      status.textContent = "Connected";
+    } else {
+      indicator.classList.remove("connected");
+      status.textContent = "Offline";
+    }
+  }
+
+  function processUpdateQueue() {
+    while (updateQueue.length > 0) {
+      const update = updateQueue.shift();
+      handleMessage(update);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // MESSAGE HANDLERS
+  // ════════════════════════════════════════════════════════════════
+  function handleMessage(message) {
+    if (!wsConnected && message.type === "status") {
+      updateQueue.push(message);
+      return;
+    }
+    
+    if (message.type === "status" || message.type === "status_update") {
+      updateDashboard(message.data);
+    } else if (message.type === "decision") {
+      handleDecision(message.data);
+    }
+  }
+
+  function updateDashboard(data) {
+    if (!data) return;
+    
+    if (data.threat) {
+      const threatLevel = (data.threat.level || "low").toLowerCase();
+      updateThreatBanner(data.threat);
+    }
+    
+    if (data.volatility) {
+      const vol = (data.volatility.realizedVolatility || 0.34);
+      document.getElementById("volValue").textContent = vol.toFixed(2);
+      
+      const price = data.volatility.currentPrice || 0.180;
+      document.getElementById("metricPrice").textContent = "$" + price.toFixed(3);
+      
+      const change = data.volatility.priceChangePercent24h || 2.4;
+      document.getElementById("priceBadge").textContent = (change > 0 ? "+" : "") + change.toFixed(1) + "%";
+    }
+    
+    if (data.vault) {
+      const tvl = data.vault.tvl || 125000;
+      document.getElementById("metricTVL").textContent = "$" + formatNumber(tvl);
+    }
+    
+    if (data.stats) {
+      if (data.stats.apy) document.getElementById("metricAPY").textContent = (data.stats.apy * 100).toFixed(1) + "%";
+      if (data.stats.safetyScore) document.getElementById("metricSafety").textContent = data.stats.safetyScore;
+      if (data.stats.cyclesCompleted) {
+        document.getElementById("cyclesRun").textContent = data.stats.cyclesCompleted;
+        document.getElementById("cycleCounter").textContent = data.stats.cyclesCompleted;
+      }
+    }
+  }
+
+  function updateThreatBanner(threatData) {
+    const level = (threatData.level || "LOW").toUpperCase();
+    const score = threatData.score || 0;
+    const levelLower = level.toLowerCase();
+    
+    document.getElementById("threatLevel").textContent = level;
+    document.getElementById("threatPercent").textContent = Math.round(score * 100) + "%";
+    document.getElementById("threatScore").textContent = "Score: " + Math.round(score * 100) + "/100";
+    document.getElementById("threatStatus").textContent = threatData.reasoning || "Analyzing...";
+    
+    const arc = document.getElementById("threatArc");
+    arc.setAttribute("class", "threat-arc " + levelLower);
+    
+    const circumference = 2 * Math.PI * 90;
+    const offset = circumference * (1 - score);
+    arc.style.strokeDashoffset = offset;
+  }
+
+  function handleDecision(result) {
+    if (!result || !result.decision) return;
+    
+    const timeline = document.getElementById("decisionTimeline");
+    const node = document.createElement("div");
+    node.className = "decision-node " + result.decision.action;
+    node.innerHTML = `
+      <span class="decision-badge ${result.decision.action}">${result.decision.action}</span>
+      <span class="decision-time">${new Date().toLocaleTimeString()}</span>
+      <div class="decision-reason">${result.decision.reasoning}</div>
+    `;
+    timeline.insertBefore(node, timeline.firstChild);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // UI FUNCTIONS
+  // ════════════════════════════════════════════════════════════════
+  function setActiveNav(section) {
+    document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+    document.querySelector(`[data-section="${section}"]`).classList.add('active');
+  }
+
+  function animateCountUp(element, target, duration = 1000) {
+    const start = parseInt(element.textContent) || 0;
+    const increment = (target - start) / (duration / 16);
+    let current = start;
+    
+    const animate = () => {
+      current += increment;
+      if (current >= target) {
+        element.textContent = target;
+      } else {
+        element.textContent = Math.round(current);
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    animate();
+  }
+
+  function renderSparkline(containerId, dataPoints) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const width = container.offsetWidth;
+    const height = container.offsetHeight;
+    const pointSpacing = width / (dataPoints.length - 1);
+    
+    let points = '';
+    dataPoints.forEach((val, i) => {
+      const x = i * pointSpacing;
+      const y = height - (val / Math.max(...dataPoints)) * (height * 0.8) - height * 0.1;
+      points += `${x},${y} `;
+    });
+    
+    return points.trim();
+  }
+
+  function animateVolatilityNeedle(value) {
+    const needle = document.getElementById("volatilityNeedle");
+    if (needle) {
+      const maxDashOffset = 251;
+      const offset = maxDashOffset * (1 - Math.min(value, 1));
+      needle.style.strokeDashoffset = offset;
+    }
+  }
+
+  function updatePriceChart(priceHistory) {
+    const polyline = document.getElementById("priceChart");
+    if (!polyline || !priceHistory || priceHistory.length === 0) return;
+    
+    const width = 200;
+    const height = 100;
+    const pointSpacing = width / (priceHistory.length - 1);
+    const minPrice = Math.min(...priceHistory);
+    const maxPrice = Math.max(...priceHistory);
+    const range = maxPrice - minPrice || 1;
+    
+    let points = '';
+    priceHistory.forEach((price, i) => {
+      const x = 10 + (i / (priceHistory.length - 1)) * 180;
+      const y = 80 - ((price - minPrice) / range) * 50;
+      points += `${x},${y} `;
+    });
+    
+    polyline.setAttribute("points", points.trim());
+  }
+
+  function viewHashScan(seq) {
+    const hashscanUrl = `https://hashscan.io/mainnet/transaction/`;
+    window.open(hashscanUrl, '_blank');
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // CHAT FUNCTIONS
+  // ════════════════════════════════════════════════════════════════
+  async function sendMessage() {
+    const input = document.getElementById("chatInput");
+    const msg = input.value.trim();
+    if (!msg) return;
+    
+    addChatMessage(msg, "user");
+    input.value = "";
+    input.focus();
+    
+    try {
+      const resp = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        addChatMessage(data.response || "No response", "assistant");
+      } else {
+        addChatMessage("Error: " + resp.status, "assistant");
+      }
+    } catch (e) {
+      addChatMessage("Connection error", "assistant");
+    }
+  }
+
+  function addChatMessage(text, role) {
+    const container = document.getElementById("chatMessages");
+    const msg = document.createElement("div");
+    msg.className = `chat-message ${role}`;
+    msg.innerHTML = `
+      <div class="chat-avatar ${role}">${role === 'user' ? '👤' : '🤖'}</div>
+      <div class="chat-bubble">${escapeHtml(text)}</div>
+    `;
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function sendQuick(msg) {
+    document.getElementById("chatInput").value = msg;
+    sendMessage();
+  }
+
+  function handleChatKeypress(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // AGENT CYCLE
+  // ════════════════════════════════════════════════════════════════
+  async function runAgentCycle() {
+    const btn = document.getElementById("runBtn");
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ Running...";
+    
+    try {
+      const resp = await fetch("/api/agent/run", { method: "POST" });
+      if (resp.ok) {
+        btn.textContent = "✓ Complete";
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }, 2000);
+      }
+    } catch (e) {
+      console.error("Error", e);
+      btn.textContent = "✗ Error";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 2000);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // UTILITIES
+  // ════════════════════════════════════════════════════════════════
+  function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+    return num.toFixed(0);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // INITIALIZATION
+  // ════════════════════════════════════════════════════════════════
+  window.addEventListener("load", () => {
+    connectWS();
+    
+    fetch("/api/status")
+      .then(r => r.json())
+      .then(updateDashboard)
+      .catch(() => {});
+    
+    setInterval(() => {
+      fetch("/api/status")
+        .then(r => r.json())
+        .then(updateDashboard)
+        .catch(() => {});
+    }, 30000);
+  });
+</script>
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const wsUrl = `${protocol}://${window.location.host}`;
 
@@ -697,6 +2122,7 @@
       console.log("✓ WebSocket connected");
       wsConnected = true;
       updateWSIndicator(true);
+      processUpdateQueue();
     };
 
     ws.onmessage = (event) => {
@@ -731,11 +2157,56 @@
     }
   }
 
+  function processUpdateQueue() {
+    while (updateQueue.length > 0) {
+      const update = updateQueue.shift();
+      handleMessage(update);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // Animation & UI Enhancements
+  // ════════════════════════════════════════════════════════════════
+
+  function highlightCard(elementId) {
+    const el = document.getElementById(elementId);
+    if (el) {
+      el.classList.add("active-update");
+      setTimeout(() => el.classList.remove("active-update"), 600);
+    }
+  }
+
+  function generateMiniChart() {
+    const chart = document.getElementById("volChart");
+    if (!chart) return;
+    
+    chart.innerHTML = "";
+    const barCount = 12;
+    const containerWidth = chart.offsetWidth;
+    const barWidth = containerWidth / barCount;
+
+    for (let i = 0; i < barCount; i++) {
+      const height = Math.random() * 60 + 10;
+      const bar = document.createElement("div");
+      bar.className = "chart-bar";
+      bar.style.left = (i * barWidth) + "px";
+      bar.style.width = (barWidth * 0.7) + "px";
+      bar.style.height = height + "px";
+      bar.style.opacity = 0.5 + (i / barCount) * 0.5;
+      chart.appendChild(bar);
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════
   // Message Handlers
   // ════════════════════════════════════════════════════════════════
 
   function handleMessage(message) {
+    if (!wsConnected && message.type === "status") {
+      updateQueue.push(message);
+      return;
+    }
+
     if (message.type === "status" || message.type === "status_update") {
       updateDashboard(message.data);
     } else if (message.type === "decision") {
@@ -747,26 +2218,47 @@
     if (!data) return;
 
     if (data.threat) {
+      const threatLevel = (data.threat.level || "low").toLowerCase();
       updateThreatRing(data.threat.score, data.threat.level);
-      document.getElementById("threatLevel").textContent = data.threat.level;
       document.getElementById("threatTitle").textContent = `Threat: ${data.threat.level}`;
       document.getElementById("threatDesc").textContent = data.threat.reasoning || "Analyzing signals...";
+      highlightCard("threatBanner");
     }
 
     if (data.volatility) {
       const vol = (data.volatility.realizedVolatility || 0) * 100;
+      const oldVol = document.getElementById("volatility").textContent;
       document.getElementById("volatility").textContent = vol.toFixed(1) + "%";
-      document.getElementById("volClass").textContent = `Classification: ${data.volatility.volatilityClassification || "STABLE"}`;
+      document.getElementById("volClass").textContent = `CLASSIFICATION: ${data.volatility.volatilityClassification || "STABLE"}`;
       document.getElementById("hbarPrice").textContent = "$" + (data.volatility.currentPrice || 0.15).toFixed(4);
 
       const change = data.volatility.priceChangePercent24h || 0;
       const el = document.getElementById("priceChange");
       el.textContent = (change > 0 ? "↑ " : "↓ ") + Math.abs(change).toFixed(2) + "%";
       el.className = `stat-change ${change > 0 ? "up" : "down"}`;
+
+      document.getElementById("priceArrow").textContent = change > 0 ? "📈" : "📉";
+      highlightCard("volatility");
+      generateMiniChart();
     }
 
     if (data.vault) {
-      document.getElementById("vaultTVL").textContent = "$" + (data.vault.tvl || 0).toFixed(0);
+      const tvl = "$" + (data.vault.tvl || 0).toFixed(0);
+      document.getElementById("vaultTVL").textContent = tvl;
+      document.getElementById("vaultQuick").textContent = tvl;
+      highlightCard("vaultTVL");
+    }
+
+    if (data.stats) {
+      if (data.stats.pnl) {
+        const pnlEl = document.getElementById("vaultPnL");
+        const pnlValue = data.stats.pnl > 0 ? "+" : "";
+        pnlEl.textContent = pnlValue + "$" + Math.abs(data.stats.pnl).toFixed(0);
+        pnlEl.style.color = data.stats.pnl > 0 ? "#10b981" : "#ef4444";
+      }
+      if (data.stats.apy) document.getElementById("vaultAPY").textContent = (data.stats.apy * 100).toFixed(1) + "%";
+      if (data.stats.safetyScore) document.getElementById("safetyScore").textContent = data.stats.safetyScore + "/100";
+      if (data.stats.cyclesCompleted) document.getElementById("cyclesCompleted").textContent = data.stats.cyclesCompleted;
     }
   }
 
@@ -786,6 +2278,8 @@
     banner.className = `threat-banner ${levelLower}`;
     badge.className = `threat-badge ${levelLower}`;
     badge.textContent = level;
+
+    highlightCard("threatBanner");
   }
 
   function updateDecision(result) {
@@ -802,6 +2296,7 @@
     `;
     if (log.children[0].textContent.includes("No immediate threats")) log.innerHTML = "";
     log.insertBefore(entry, log.firstChild);
+    highlightCard("decisionLog");
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -815,6 +2310,7 @@
 
     addChatMessage(msg, "user");
     input.value = "";
+    input.focus();
 
     try {
       const resp = await fetch("/api/agent/chat", {
@@ -824,19 +2320,22 @@
       });
       if (resp.ok) {
         const data = await resp.json();
-        addChatMessage(data.response, "assistant");
+        addChatMessage(data.response || "No response received", "assistant");
+      } else {
+        addChatMessage("Error: " + resp.status, "assistant");
       }
     } catch (e) {
-      addChatMessage("Error connecting to agent", "assistant");
+      addChatMessage("Connection error to agent", "assistant");
     }
   }
 
   function addChatMessage(text, role) {
     const el = document.createElement("div");
     el.className = `chat-message ${role}`;
-    el.innerHTML = `<div class="chat-bubble">${text}</div>`;
+    el.innerHTML = `<div class="chat-bubble">${escapeHtml(text)}</div>`;
     document.getElementById("chatMessages").appendChild(el);
-    document.getElementById("chatMessages").scrollTop = document.getElementById("chatMessages").scrollHeight;
+    const chatBox = document.getElementById("chatMessages");
+    chatBox.scrollTop = chatBox.scrollHeight;
   }
 
   function sendQuick(msg) {
@@ -845,7 +2344,21 @@
   }
 
   function handleChatKeypress(e) {
-    if (e.key === "Enter") sendMessage();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -853,18 +2366,48 @@
   // ════════════════════════════════════════════════════════════════
 
   document.getElementById("runBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("runBtn");
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ Running...";
     try {
-      await fetch("/api/agent/run", { method: "POST" });
+      const resp = await fetch("/api/agent/run", { method: "POST" });
+      if (resp.ok) {
+        btn.textContent = "✓ Cycle Complete";
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }, 2000);
+      }
     } catch (e) {
       console.error("Error running cycle", e);
+      btn.textContent = "✗ Error";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 2000);
     }
   });
 
   window.addEventListener("load", () => {
     initWebSocket();
+    generateMiniChart();
+    
     fetch("/api/status").then(r => r.json()).then(updateDashboard).catch(() => {});
-    setInterval(() => fetch("/api/status").then(r => r.json()).then(updateDashboard).catch(() => {}), 30000);
+    setInterval(() => {
+      fetch("/api/status").then(r => r.json()).then(updateDashboard).catch(() => {});
+    }, 30000);
+
+    // Periodic mini-chart regeneration
+    setInterval(generateMiniChart, 60000);
   });
+
+  // Auto-format large numbers
+  function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+    return num.toFixed(2);
+  }
 </script>
 </body>
 </html>

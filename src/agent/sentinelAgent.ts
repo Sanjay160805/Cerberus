@@ -1,303 +1,264 @@
 /**
- * SENTINEL Main Agent - LangGraph ReAct Agent
- * Coordinates all tools to implement the decision matrix and execute vault protection actions
+ * SENTINEL Agent — Autonomous Decision Maker
+ * Combines all 7 LangChain tools with threat × volatility decision matrix
+ * Runs autonomous cycles (5-10 seconds) and chat interactions
  */
 
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage } from "@langchain/core/messages";
+
 import {
   AgentDecision,
-  ThreatSignal,
-  VolatilityData,
-  VaultState,
-  DashboardStatus,
-  IngestedTweet,
+  AgentAction,
   ThreatLevel,
-  VolatilityClassification,
+  VolatilityTrend,
 } from "../types/index.js";
+
+// Import all 7 tools
+import { hcsLoggerTool } from "./tools/hcsTool.js";
 import { sentimentTool } from "./tools/sentimentTool.js";
 import { volatilityTool } from "./tools/volatilityTool.js";
-import { vaultStateTool, harvestTool, withdrawTool, emergencyExitTool } from "./tools/vaultTool.js";
-import { hcsTool } from "./tools/hcsTool.js";
-import { getVolatilityData } from "../oracle/supraOracle.js";
-import { fetchGeopoliticalTweets } from "../rag/twitterIngestor.js";
-import { getVaultState, executeVaultAction } from "../vault/bonzoVault.js";
-import * as dotenv from "dotenv";
+import {
+  vaultStateTool,
+  harvestTool,
+  withdrawTool,
+  emergencyExitTool,
+} from "./tools/vaultTool.js";
 
-dotenv.config();
-
-// Stored state for dashboard
-let lastThreatSignal: ThreatSignal | null = null;
-let lastVolatilityData: VolatilityData | null = null;
-let decisionHistory: AgentDecision[] = [];
-let signalHistory: IngestedTweet[] = [];
-let isLooping = false;
+// ════════════════════════════════════════════════════════════════
+// SENTINEL AGENT INITIALIZATION
+// ════════════════════════════════════════════════════════════════
 
 /**
- * Create the core LangGraph ReAct agent
+ * Initialize Sentinel Agent with all 7 tools
  */
 export function createSentinelAgent() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY not set in .env");
-  }
-
-  const model = new ChatOpenAI({
-    openAIApiKey: apiKey,
-    modelName: "gpt-4o",
-    temperature: 0, // Deterministic reasoning for critical decisions
+  const model = new ChatGoogleGenerativeAI({
+    modelName: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY,
+    temperature: 0.3, // Low temperature for consistent decisions
+    maxOutputTokens: 1024,
   });
 
-  const tools: any[] = [
+  const tools = [
     sentimentTool,
     volatilityTool,
     vaultStateTool,
     harvestTool,
     withdrawTool,
     emergencyExitTool,
-    hcsTool,
+    hcsLoggerTool,
   ];
 
-  const systemPrompt = `You are SENTINEL, an autonomous vault protection agent operating on the Hedera network.
+  const systemPrompt = `You are SENTINEL, an autonomous AI vault keeper on Hedera Hashgraph.
+Your role is to protect DeFi capital by monitoring geopolitical threats and market volatility.
 
-Your mission: Analyze geopolitical signals and market conditions to make proactive decisions protecting user DeFi vault positions.
+You have access to 7 specialized tools:
+1. get_sentiment — Analyzes geopolitical tweets and returns threat level (LOW/MEDIUM/HIGH/CRITICAL)
+2. get_volatility — Fetches HBAR price and calculates volatility trend (STABLE/VOLATILE/EXTREME)
+3. get_vault_state — Reads current vault TVL, share price, and user position
+4. harvest_vault_rewards — Composts rewards (call during STABLE periods)
+5. withdraw_from_vault — Executes partial 50% withdrawal (call during volatile threats)
+6. emergency_exit_vault — FULL exit on CRITICAL threat (highest priority)
+7. hcs_logger — Logs all decisions to Hedera Consensus Service for audit trail
 
-DECISION MATRIX (strict rules):
-1. CRITICAL threat (score >= 0.85) → EMERGENCY_EXIT (all funds)
-2. HIGH threat (score >= 0.65) + EXTREME volatility → WITHDRAW
-3. HIGH threat + VOLATILE → WITHDRAW
-4. MEDIUM threat (score >= 0.3) → HARVEST (lock gains, prepare for action)
-5. LOW threat + STABLE → HOLD
-6. LOW threat + VOLATILE → HOLD (monitor, no action)
+DECISION MATRIX (threat × volatility):
+
+┌─────────────────────────────────────────────────────────┐
+│ LOW threat + STABLE volatility      → HARVEST           │
+│ LOW threat + VOLATILE volatility    → HOLD              │
+│ MEDIUM threat + any volatility      → HARVEST or HOLD   │
+│ HIGH threat + STABLE volatility     → HARVEST           │
+│ HIGH threat + VOLATILE volatility   → WITHDRAW 50%      │
+│ HIGH threat + EXTREME volatility    → WITHDRAW 50%      │
+│ CRITICAL threat + any volatility    → EMERGENCY_EXIT    │
+└─────────────────────────────────────────────────────────┘
 
 EXECUTION FLOW:
-1. Call analyze_geopolitical_sentiment first  
-2. Call get_volatility_data second
-3. Call get_vault_state to check current position
-4. Evaluate decision matrix based on results
-5. Execute appropriate action (harvest/withdraw/emergency_exit/hold)
-6. Always log decision to HCS using log_decision_to_hcs
+1. Call get_sentiment to assess geopolitical threats
+2. Call get_volatility to assess market conditions
+3. Call get_vault_state to assess current position
+4. Apply decision matrix to determine action
+5. Execute action via appropriate tool
+6. Log decision via hcs_logger with threat/volatility context
+7. Return decision summary
 
-CRITICAL GUIDELINES:
-- Do NOT call tools multiple times unless necessary
-- Do NOT second-guess the decision matrix
-- Do NOT delay emergency exits when threat is CRITICAL
-- Always log decisions to HCS
-- Return JSON decision with action, threat_level, volatility_level, reasoning`;
+IMPORTANT RULES:
+- ALWAYS analyze sentiment first, then volatility, then vault state
+- ALWAYS apply decision matrix rules exactly
+- CRITICAL threat ALWAYS leads to emergency_exit, no exceptions
+- HCS logging MUST include full context (threat, volatility, action, vault state)
+- Keep responses concise (< 150 chars) for dashboard display
+- Never call tools speculatively; only call when needed
+
+Your decisions affect real capital. Be cautious and follow the decision matrix precisely.`;
 
   const agent = createReactAgent({
-    llmWithTools: model,
-    tools: tools,
-    systemMessage: systemPrompt,
+    llmWithTools: model.bindTools(tools),
+    tools,
+    messageModifier: systemPrompt,
   });
 
   return agent;
 }
 
+// ════════════════════════════════════════════════════════════════
+// AUTONOMOUS CYCLE RUNNER
+// ════════════════════════════════════════════════════════════════
+
 /**
- * Run one autonomous protection cycle
- * Sense → Reason → Act → Log → Broadcast
+ * Execute one complete autonomous decision cycle
+ * Returns AgentDecision with action taken
  */
-export async function runAutonomousCycle(): Promise<{
-  decision: AgentDecision;
-  threat: ThreatSignal | null;
-  volatility: VolatilityData | null;
-  vault: VaultState | null;
-}> {
+export async function runAutonomousCycle(): Promise<AgentDecision> {
   try {
-    isLooping = true;
-    console.log("\n════════════════════════════════════════════════════");
-    console.log("🤖 SENTINEL Autonomous Cycle Starting...");
-    console.log("════════════════════════════════════════════════════\n");
-
-    // SENSE: Fetch data
-    console.log("📡 SENSE PHASE - Collecting signals...");
-    const tweets = await fetchGeopoliticalTweets();
-    signalHistory = tweets.slice(0, 10);
-    console.log(`   📊 Fetched ${tweets.length} tweets`);
-
-    // Create agent and run decision cycle
     const agent = createSentinelAgent();
+    const agentExecutor = agent;
 
-    const prompt =
-      "Analyze current threats and make a vault protection decision. Reason through the decision matrix. Use all tools systematically.";
+    // Invoke agent with autonomous cycle prompt
+    const input = {
+      messages: [
+        new HumanMessage(`You are in autonomous monitoring mode.
 
-    const messages = [new HumanMessage(prompt)];
+Execute this cycle exactly:
+1. Call get_sentiment to analyze geopolitical threats
+2. Call get_volatility to check market conditions
+3. Call get_vault_state to see current position
+4. Based on threat + volatility, decide action using decision matrix
+5. Execute the action (harvest/withdraw/emergency_exit or hold)
+6. Log the decision to HCS with full context
 
-    // REASON: Run agent
-    console.log("\n🧠 REASON PHASE - Analyzing threats...");
+What should we do right now?`),
+      ],
+    };
 
-    let agentResponse: any;
-    try {
-      agentResponse = await agent.invoke({ messages });
-    } catch (agentError) {
-      console.error("✗ Agent execution failed:", agentError);
-      // Fallback: HOLD action
-      agentResponse = {
-        messages: [
-          {
-            content: JSON.stringify({
-              action: "HOLD",
-              threat_level: "LOW",
-              volatility_level: "STABLE",
-              reasoning: "Agent error, defaulting to safe HOLD",
-            }),
-          },
-        ],
-      };
-    }
+    const startTime = Date.now();
+    const result = await agentExecutor.invoke(input);
+    const duration = Date.now() - startTime;
 
-    // Extract decision from final message
-    const finalMessage = agentResponse.messages[agentResponse.messages.length - 1];
-    let decision: AgentDecision;
+    console.log(
+      `✓ Autonomous cycle completed in ${duration}ms\nAgent response: ${JSON.stringify(result.messages[result.messages.length - 1])}`,
+    );
 
-    try {
-      const content = finalMessage.content || "{}";
-      const parsed = typeof content === "string" ? JSON.parse(content) : content;
-
-      decision = {
-        action: (parsed.action as any) || "HOLD",
-        threat_level: (parsed.threat_level as ThreatLevel) || ThreatLevel.LOW,
-        volatility_level:
-          (parsed.volatility_level as VolatilityClassification) ||
-          VolatilityClassification.STABLE,
-        reasoning: parsed.reasoning || "Analysis complete",
-        timestamp: new Date(),
-      };
-    } catch {
-      decision = {
-        action: "HOLD",
-        threat_level: ThreatLevel.LOW,
-        volatility_level: VolatilityClassification.STABLE,
-        reasoning: "Could not parse response, defaulting to HOLD",
-        timestamp: new Date(),
-      };
-    }
-
-    // ACT: Execute decision
-    console.log(`\n⚡ ACT PHASE - Executing ${decision.action}...`);
-
-    const vault = await getVaultState();
-
-    if (decision.action !== "HOLD") {
-      const actionResult = await executeVaultAction(
-        decision.action,
-        decision.action === "WITHDRAW" ? 50 : undefined,
-      );
-      decision.txHash = actionResult.txHash;
-      console.log(`   ✓ ${decision.action} executed: ${actionResult.txHash}`);
-    } else {
-      console.log("   ✓ HOLD - no action needed");
-    }
-
-    // Store in history
-    decisionHistory.unshift(decision);
-    if (decisionHistory.length > 20) decisionHistory = decisionHistory.slice(0, 20);
-
-    console.log("\n✓ Cycle Complete");
-    console.log("════════════════════════════════════════════════════\n");
-
-    isLooping = false;
+    // Parse the agent's decision from response
+    const lastMessage =
+      result.messages[result.messages.length - 1].content;
+    const parseDecision = parseDecisionFromResponse(lastMessage);
 
     return {
-      decision,
-      threat: lastThreatSignal,
-      volatility: lastVolatilityData,
-      vault,
+      threat: parseDecision.threat || ThreatLevel.MEDIUM,
+      volatility: parseDecision.volatility || VolatilityTrend.STABLE,
+      action: parseDecision.action || AgentAction.HOLD,
+      reasoning: lastMessage,
+      timestamp: new Date(),
+      cycleTime: duration,
     };
   } catch (error) {
-    console.error("✗ Autonomous cycle failed:", error);
-    isLooping = false;
+    console.error("❌ Autonomous cycle failed:", error);
 
     return {
-      decision: {
-        action: "HOLD",
-        threat_level: ThreatLevel.LOW,
-        volatility_level: VolatilityClassification.STABLE,
-        reasoning: `Error: ${error instanceof Error ? error.message : "unknown"}`,
-        timestamp: new Date(),
-      },
-      threat: null,
-      volatility: null,
-      vault: null,
+      threat: ThreatLevel.MEDIUM,
+      volatility: VolatilityTrend.STABLE,
+      action: AgentAction.HOLD,
+      reasoning: `Cycle error: ${error instanceof Error ? error.message : "unknown"}`,
+      timestamp: new Date(),
+      cycleTime: 0,
     };
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// CHAT MODE RUNNER
+// ════════════════════════════════════════════════════════════════
+
 /**
- * Run chat interface cycle
+ * Execute one chat interaction
+ * User can ask SENTINEL questions about vault status, threats, actions, etc.
  */
-export async function runChatCycle(userMessage: string): Promise<string> {
+export async function runChatCycle(message: string): Promise<string> {
   try {
-    console.log(`\n💬 User: ${userMessage}`);
-
     const agent = createSentinelAgent();
-    const messages = [new HumanMessage(userMessage)];
+    const agentExecutor = agent;
 
-    const response = await agent.invoke({ messages });
+    // Invoke agent with user message
+    const input = {
+      messages: [new HumanMessage(message)],
+    };
 
-    const finalMessage = response.messages[response.messages.length - 1];
-    let assistantResponse = finalMessage.content || "No response available";
+    const result = await agentExecutor.invoke(input);
+    const lastMessage =
+      result.messages[result.messages.length - 1].content;
 
-    if (typeof assistantResponse !== "string") {
-      assistantResponse = JSON.stringify(assistantResponse, null, 2);
-    }
-
-    console.log(`🤖 SENTINEL: ${assistantResponse}\n`);
-
-    return assistantResponse;
+    return lastMessage;
   } catch (error) {
-    console.error("✗ Chat cycle failed:", error);
+    console.error("❌ Chat cycle failed:", error);
     return `Error: ${error instanceof Error ? error.message : "unknown"}`;
   }
 }
 
-/**
- * Get current dashboard status snapshot
- */
-export async function getDashboardStatus(): Promise<DashboardStatus> {
-  try {
-    lastVolatilityData = await getVolatilityData();
-    const vault = await getVaultState();
-
-    return {
-      threat: lastThreatSignal,
-      volatility: lastVolatilityData,
-      vault,
-      recentDecisions: decisionHistory.slice(0, 10),
-      recentSignals: signalHistory.slice(0, 5),
-      isLooping,
-      lastCycleTime: decisionHistory[0]?.timestamp || new Date(),
-    };
-  } catch (error) {
-    console.error("✗ Failed to get dashboard status:", error);
-
-    return {
-      threat: null,
-      volatility: null,
-      vault: null,
-      recentDecisions: decisionHistory.slice(0, 10),
-      recentSignals: signalHistory,
-      isLooping,
-      lastCycleTime: new Date(),
-    };
-  }
-}
+// ════════════════════════════════════════════════════════════════
+// DECISION PARSER
+// ════════════════════════════════════════════════════════════════
 
 /**
- * Get recent decisions
+ * Parse agent response to extract decision values
  */
-export function getRecentDecisions(): AgentDecision[] {
-  return decisionHistory.slice(0, 10);
+function parseDecisionFromResponse(response: string): {
+  threat?: ThreatLevel;
+  volatility?: VolatilityTrend;
+  action?: AgentAction;
+} {
+  const result: {
+    threat?: ThreatLevel;
+    volatility?: VolatilityTrend;
+    action?: AgentAction;
+  } = {};
+
+  // Extract threat level
+  if (response.includes("CRITICAL")) result.threat = ThreatLevel.CRITICAL;
+  else if (response.includes("HIGH")) result.threat = ThreatLevel.HIGH;
+  else if (response.includes("MEDIUM")) result.threat = ThreatLevel.MEDIUM;
+  else if (response.includes("LOW")) result.threat = ThreatLevel.LOW;
+
+  // Extract volatility
+  if (response.includes("EXTREME")) result.volatility = VolatilityTrend.EXTREME;
+  else if (response.includes("VOLATILE"))
+    result.volatility = VolatilityTrend.VOLATILE;
+  else if (response.includes("STABLE"))
+    result.volatility = VolatilityTrend.STABLE;
+
+  // Extract action
+  if (response.includes("EMERGENCY_EXIT") || response.includes("emergency exit"))
+    result.action = AgentAction.EMERGENCY_EXIT;
+  else if (response.includes("WITHDRAW") || response.includes("withdraw"))
+    result.action = AgentAction.WITHDRAW;
+  else if (response.includes("HARVEST") || response.includes("harvest"))
+    result.action = AgentAction.HARVEST;
+  else result.action = AgentAction.HOLD;
+
+  return result;
 }
 
-/**
- * Check if agent is currently looping
- */
-export function getLoopingStatus(): boolean {
-  return isLooping;
+// ════════════════════════════════════════════════════════════════
+// AGENT STATUS
+// ════════════════════════════════════════════════════════════════
+
+export interface AgentStatus {
+  isRunning: boolean;
+  cycleCount: number;
+  lastDecision: AgentDecision | null;
+  lastCycleTime: number;
+  threatsDetected: number;
 }
+
+export const agentStatus: AgentStatus = {
+  isRunning: false,
+  cycleCount: 0,
+  lastDecision: null,
+  lastCycleTime: 0,
+  threatsDetected: 0,
+};
 
 export default {
   createSentinelAgent,

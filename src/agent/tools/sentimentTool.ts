@@ -1,64 +1,90 @@
 /**
- * Sentiment Analysis Tool for LangChain Agent
- * Wraps the RAG pipeline threat analysis
+ * Sentiment Analysis Tool — Geopolitical Threat Assessment
+ * Fetches tweets and analyzes threat level using RAG + Gemini
  */
 
-import { tool } from "@langchain/core/tools";
-import { z } from "zod";
+import { DynamicTool } from "@langchain/core/tools";
 import { fetchGeopoliticalTweets } from "../../rag/twitterIngestor.js";
 import { analyzeThreatLevel, quickThreatCheck } from "../../rag/ragChain.js";
+import { ThreatSignal, ThreatLevel } from "../../types/index.js";
 
-const sentimentToolSchema = z.object({});
+/**
+ * Analyze geopolitical sentiment from tweets
+ */
+async function analyzeSentiment(): Promise<ThreatSignal> {
+  try {
+    console.log("🔍 Fetching geopolitical tweets...");
 
-export const sentimentTool = tool(
-  async () => {
-    try {
-      // Fetch recent tweets
-      const tweets = await fetchGeopoliticalTweets();
+    // Fetch recent tweets from SQLite
+    const tweets = await fetchGeopoliticalTweets();
 
-      if (tweets.length === 0) {
-        return {
-          score: 0.0,
-          level: "LOW",
-          triggers: [],
-          recommendation: "HOLD",
-          reasoning: "No geopolitical signals detected",
-        };
-      }
-
-      // Analyze threat level using RAG pipeline
-      let threatSignal;
-      try {
-        threatSignal = await analyzeThreatLevel(tweets);
-      } catch (ragError) {
-        console.warn("⚠  RAG analysis failed, using quick threat check");
-        threatSignal = await quickThreatCheck(tweets);
-      }
-
-      return {
-        score: threatSignal.score,
-        level: threatSignal.level,
-        triggers: threatSignal.triggers,
-        recommendation: threatSignal.recommendation,
-        reasoning: threatSignal.reasoning,
-      };
-    } catch (error) {
-      console.error("✗ Sentiment analysis tool failed:", error);
+    if (tweets.length === 0) {
+      console.log("⚠ No tweets found, returning low threat baseline");
       return {
         score: 0.0,
-        level: "LOW",
-        triggers: ["tool_error"],
-        recommendation: "HOLD",
-        reasoning: "Sentiment analysis temporarily unavailable",
+        level: ThreatLevel.LOW,
+        triggers: [],
+        recommendation: "No threats detected",
+        reasoning: "No geopolitical signals in database",
+        timestamp: new Date(),
+        source: "baseline",
       };
     }
-  },
-  {
-    name: "analyze_geopolitical_sentiment",
-    description:
-      "Analyzes geopolitical signals from tweets and market alerts to determine threat level. Returns threat score (0.0-1.0), threat level (LOW/MEDIUM/HIGH/CRITICAL), identified triggers, and recommendation.",
-    schema: sentimentToolSchema,
-  },
-);
 
-export default sentimentTool;
+    console.log(`✓ Fetched ${tweets.length} tweets for analysis`);
+
+    // Try RAG analysis first (Gemini)
+    let threatSignal: ThreatSignal;
+    try {
+      console.log("🧠 Running RAG analysis with Gemini...");
+      threatSignal = await analyzeThreatLevel(tweets);
+    } catch (ragError) {
+      console.warn("⚠ RAG analysis failed, using keyword fallback");
+      threatSignal = await quickThreatCheck(tweets);
+    }
+
+    console.log(
+      `✓ Threat Analysis Complete: ${threatSignal.level} (${(threatSignal.score * 100).toFixed(0)}%)`,
+    );
+
+    return threatSignal;
+  } catch (error) {
+    console.error("❌ Sentiment analysis failed:", error);
+
+    // Return safe default
+    return {
+      score: 0,
+      level: ThreatLevel.LOW,
+      triggers: ["analysis_error"],
+      recommendation: "HOLD",
+      reasoning: "Sentiment analysis temporarily unavailable",
+      timestamp: new Date(),
+      source: "fallback",
+    };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// LANGCHAIN TOOL
+// ════════════════════════════════════════════════════════════════
+
+export const sentimentTool = new DynamicTool({
+  name: "analyze_geopolitical_sentiment",
+  description:
+    "Analyzes geopolitical signals from cryptocurrency tweets and market data. " +
+    "Uses RAG pipeline with Google Gemini to assess threat level. " +
+    "Returns threat score (0.0-1.0), threat level (LOW/MEDIUM/HIGH/CRITICAL), " +
+    "identified triggers/keywords, and defensive recommendation.",
+  func: async () => {
+    const threatSignal = await analyzeSentiment();
+
+    return JSON.stringify({
+      score: threatSignal.score,
+      level: threatSignal.level,
+      triggers: threatSignal.triggers,
+      recommendation: threatSignal.recommendation,
+      reasoning: threatSignal.reasoning,
+      timestamp: threatSignal.timestamp,
+    });
+  },
+});

@@ -1,115 +1,146 @@
 /**
- * Hedera Consensus Service (HCS) Logging Tool for LangChain Agent
- * Logs every agent decision to an immutable audit trail
+ * HCS Tool — Log Decisions to Hedera Consensus Service
+ * Implements immutable audit trail for all SENTINEL decisions
  */
 
-import { tool } from "@langchain/core/tools";
-import { z } from "zod";
-import { submitTopicMessage, getOrCreateTopic } from "../../hedera/hederaClient.js";
+import { DynamicTool } from "@langchain/core/tools";
+import { AgentDecision, ThreatSignal, VolatilityData } from "../../types/index.js";
+import { getHederaClient } from "../../hedera/hederaClient.js";
+import {
+  TopicCreateTransaction,
+  TopicMessageSubmitTransaction,
+  TopicId,
+} from "@hashgraph/sdk";
+import * as dotenv from "dotenv";
 
-const hcsToolSchema = z.object({
-  action: z.enum(["HOLD", "HARVEST", "WITHDRAW", "EMERGENCY_EXIT"]).describe("Action taken by agent"),
-  threat_level: z
-    .enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"])
-    .describe("Current threat level"),
-  volatility_level: z
-    .enum(["STABLE", "VOLATILE", "EXTREME"])
-    .describe("Current volatility classification"),
-  reasoning: z.string().describe("Explanation of the decision"),
-  txHash: z.string().optional().describe("Vault transaction hash if action executed"),
-});
+dotenv.config();
+
+// ════════════════════════════════════════════════════════════════
+// HCS STATE
+// ════════════════════════════════════════════════════════════════
+
+let hcsTopicId: string | null = null;
 
 /**
- * Submit a decision message to HCS
+ * Get or create HCS topic for SENTINEL decisions
  */
-async function submitDecisionToHCS(
-  action: string,
-  threatLevel: string,
-  volatilityLevel: string,
-  reasoning: string,
-  txHash?: string,
-): Promise<{
-  sequenceNumber: number;
-  timestamp: string;
-  topicId: string;
-  messageHash: string;
-}> {
+async function getOrCreateHCSTopic(): Promise<string> {
+  if (hcsTopicId) return hcsTopicId;
+
+  const envTopicId = process.env.HCS_TOPIC_ID;
+  if (envTopicId) {
+    hcsTopicId = envTopicId;
+    console.log(`✓ Using existing HCS topic: ${hcsTopicId}`);
+    return hcsTopicId;
+  }
+
   try {
-    // Create message payload
-    const message = {
-      action,
-      threat_level: threatLevel,
-      volatility_level: volatilityLevel,
-      reasoning,
-      txHash: txHash || null,
-      timestamp: new Date().toISOString(),
-      agent: "SENTINEL",
-      version: "1.0",
-    };
+    console.log("🔄 Creating new HCS topic...");
+    const client = await getHederaClient();
 
-    const messageString = JSON.stringify(message);
+    const topicTx = new TopicCreateTransaction();
+    const txResponse = await topicTx.execute(client);
+    const receipt = await txResponse.getReceipt(client);
 
-    // Submit to HCS
-    console.log("📤 Submitting decision to HCS...");
+    hcsTopicId = receipt.topicId!.toString();
 
-    const result = await submitTopicMessage(messageString);
-    const topicId = await getOrCreateTopic();
+    console.log(`✅ HCS Topic created: ${hcsTopicId} — add to .env as HCS_TOPIC_ID`);
+    console.log(`📍 View at: https://hashscan.io/testnet/topic/${hcsTopicId}`);
 
-    console.log(`✓ HCS message submitted: seq=${result.sequenceNumber}, topic=${topicId}`);
-
-    return {
-      sequenceNumber: result.sequenceNumber,
-      timestamp: new Date().toISOString(),
-      topicId,
-      messageHash: result.messageHash,
-    };
+    return hcsTopicId;
   } catch (error) {
-    console.error("✗ Failed to submit message to HCS:", error);
+    console.error("❌ Failed to create HCS topic:", error);
     throw error;
   }
 }
 
-export const hcsTool = tool(
-  async (input) => {
+/**
+ * Submit decision JSON to HCS
+ */
+async function publishDecisionToHCS(
+  decision: AgentDecision,
+  threat: ThreatSignal,
+  volatility: VolatilityData,
+): Promise<number> {
+  try {
+    const topicId = await getOrCreateHCSTopic();
+    const client = await getHederaClient();
+
+    const messagePayload = {
+      action: decision.action,
+      threatLevel: threat.level,
+      threatScore: threat.score,
+      threatTriggers: threat.triggers,
+      volatilityTrend: volatility.trend,
+      volatilityValue: volatility.volatility,
+      recommendation: threat.recommendation,
+      reasoning: decision.reasoning,
+      txHash: decision.txHash || null,
+      timestamp: new Date().toISOString(),
+      agent: "SENTINEL",
+    };
+
+    const messageText = JSON.stringify(messagePayload);
+
+    console.log("📤 Publishing to HCS...");
+
+    const submitTx = new TopicMessageSubmitTransaction()
+      .setTopicId(topicId)
+      .setMessage(messageText);
+
+    const txResponse = await submitTx.execute(client);
+    const receipt = await txResponse.getReceipt(client);
+
+    const sequence = receipt.topicSequenceNumber?.toNumber() || 0;
+
+    console.log(`✓ HCS published: seq=${sequence}, topic=${topicId}`);
+
+    return sequence;
+  } catch (error) {
+    console.error("❌ HCS publication failed:", error);
+    return 0; // Return 0 on failure
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// LANGCHAIN TOOL
+// ════════════════════════════════════════════════════════════════
+
+export const hcsLoggerTool = new DynamicTool({
+  name: "log_decision_to_hcs",
+  description:
+    "Logs the agent's decision to Hedera Consensus Service (HCS) for an immutable, timestamped audit trail. " +
+    "Records threat level, volatility assessment, action taken, reasoning, and transaction hash. " +
+    "Creates permanent record on Hedera blockchain.",
+  func: async (input: string) => {
     try {
-      const result = await submitDecisionToHCS(
-        input.action,
-        input.threat_level,
-        input.volatility_level,
-        input.reasoning,
-        input.txHash,
-      );
+      const parsed = JSON.parse(input);
 
-      const hashscanUrl = `https://hashscan.io/testnet/topic/${result.topicId}`;
+      const decision: AgentDecision = parsed.decision;
+      const threat: ThreatSignal = parsed.threat;
+      const volatility: VolatilityData = parsed.volatility;
 
-      return {
+      const sequence = await publishDecisionToHCS(decision, threat, volatility);
+
+      const topicId = process.env.HCS_TOPIC_ID ||
+        hcsTopicId || "0.0.0";
+      const hashscanUrl = `https://hashscan.io/testnet/topic/${topicId}?s=${sequence}`;
+
+      return JSON.stringify({
         success: true,
-        sequenceNumber: result.sequenceNumber,
-        topicId: result.topicId,
-        timestamp: result.timestamp,
+        hcsSequence: sequence,
+        topicId,
         hashscanUrl,
-        message: `✓ Decision logged to HCS. View at ${hashscanUrl}`,
-      };
+        message: `✓ Decision logged to HCS sequence #${sequence}. View: ${hashscanUrl}`,
+      });
     } catch (error) {
-      console.error("✗ HCS logging tool failed:", error);
-
-      // Gracefully handle HCS failures - still record decision locally
-      return {
+      console.error("❌ HCS logger tool error:", error);
+      return JSON.stringify({
         success: false,
-        sequenceNumber: 0,
-        topicId: "",
-        timestamp: new Date().toISOString(),
-        hashscanUrl: "",
-        message: `⚠  HCS logging failed: ${error instanceof Error ? error.message : "unknown"}, but decision recorded locally`,
-      };
+        hcsSequence: 0,
+        message: `⚠  HCS logging failed but decision recorded locally`,
+      });
     }
   },
-  {
-    name: "log_decision_to_hcs",
-    description:
-      "Logs agent decision to Hedera Consensus Service for immutable audit trail. Creates permanent record of all vault protection actions.",
-    schema: hcsToolSchema,
-  },
-);
+});
 
-export default hcsTool;

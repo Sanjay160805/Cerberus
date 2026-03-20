@@ -1,222 +1,200 @@
 /**
- * SupraOracles & Price Oracle Module
- * Fetches HBAR/USDC price and calculates realized volatility
+ * Supra Oracle Integration
+ * Gets HBAR volatility and price data from Supra Oracle
+ * Falls back to CoinGecko and then mock data
  */
 
 import axios from "axios";
-import { VolatilityData, VolatilityClassification } from "../types/index.js";
+import { VolatilityData, VolatilityTrend } from "../types/index.js";
 import * as dotenv from "dotenv";
 
 dotenv.config();
 
-// In-memory price history cache (last 100 data points)
-let priceHistory: number[] = [];
-const MAX_HISTORY = 100;
+// ════════════════════════════════════════════════════════════════
+// PRICE HISTORY FOR VOLATILITY CALCULATION
+// ════════════════════════════════════════════════════════════════
 
-/**
- * Fetch price from CoinGecko API (fallback)
- */
-async function getPriceFromCoinGecko(): Promise<{ hbar: number; usdc: number } | null> {
-  try {
-    const response = await axios.get("https://api.coingecko.com/api/v3/simple/price", {
-      params: {
-        ids: "hedera-hashgraph,usd-coin",
-        vs_currencies: "usd",
-      },
-      timeout: 3000,
-    });
+const priceHistory: number[] = [];
+const MAX_HISTORY = 20;
 
-    const hbarPrice = response.data["hedera-hashgraph"]?.usd || 0.15;
-    const usdcPrice = response.data["usd-coin"]?.usd || 1.0;
-
-    return { hbar: hbarPrice, usdc: usdcPrice };
-  } catch (error) {
-    console.warn(
-      "⚠  CoinGecko API failed:",
-      error instanceof Error ? error.message : "unknown",
-    );
-    return null;
+function addPriceToHistory(price: number): void {
+  priceHistory.push(price);
+  if (priceHistory.length > MAX_HISTORY) {
+    priceHistory.shift();
   }
 }
 
-/**
- * Fetch price from SupraOracles on-chain (Hedera EVM)
- * Returns HBAR/USDC price from pair index 64
- */
-async function getPriceFromSupraOracles(): Promise<{ hbar: number; usdc: number } | null> {
+function calculateVolatility(prices: number[]): { volatility: number; trend: VolatilityTrend } {
+  if (prices.length < 2) {
+    return { volatility: 0, trend: VolatilityTrend.STABLE };
+  }
+
+  // Calculate returns (log-returns)
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    const ret = Math.log(prices[i] / prices[i - 1]);
+    returns.push(ret);
+  }
+
+  // Calculate standard deviation (volatility)
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((a, r) => a + Math.pow(r - mean, 2), 0) / returns.length;
+  const volatility = Math.sqrt(variance);
+
+  // Classify trend
+  let trend: VolatilityTrend;
+  if (volatility < 0.02) {
+    trend = VolatilityTrend.STABLE;
+  } else if (volatility < 0.05) {
+    trend = VolatilityTrend.VOLATILE;
+  } else {
+    trend = VolatilityTrend.EXTREME;
+  }
+
+  return { volatility, trend };
+}
+
+// ════════════════════════════════════════════════════════════════
+// SUPRA ORACLE (PRIMARY)
+// ════════════════════════════════════════════════════════════════
+
+async function getSupraPrice(): Promise<number | null> {
   try {
-    const supraAddress = process.env.SUPRA_ORACLE_ADDRESS;
-    if (!supraAddress) {
+    const oracleAddress = process.env.SUPRA_ORACLE_ADDRESS;
+    const rpcUrl = process.env.SUPRA_RPC_URL;
+
+    if (!oracleAddress) {
+      console.log("⚠ SUPRA_ORACLE_ADDRESS not set, trying CoinGecko");
       return null;
     }
 
-    // In production, would use ethers.js to call getSvalue(64) on Supra contract
-    // For now, return null to fall through to CoinGecko
+    // Try to call Supra Oracle contract (simplified)
+    // In production, you'd decode the contract response properly
+    console.log("🔄 Querying Supra Oracle...");
+
+    // For now, fallback to CoinGecko as Supra requires contract interaction
     return null;
   } catch (error) {
+    console.warn("⚠ Supra Oracle unavailable:", error);
     return null;
   }
 }
 
-/**
- * Get current HBAR/USDC price with fallbacks
- */
-export async function getHBARPrice(): Promise<{ hbar: number; usdc: number; rate: number }> {
-  // Try SupraOracles first, then CoinGecko, then mock
-  let prices = await getPriceFromSupraOracles();
+// ════════════════════════════════════════════════════════════════
+// COINGECKO API (FALLBACK)
+// ════════════════════════════════════════════════════════════════
 
-  if (!prices) {
-    prices = await getPriceFromCoinGecko();
+async function getCoinGeckoPrice(): Promise<number | null> {
+  try {
+    console.log("🔄 Querying CoinGecko API...");
+
+    const response = await axios.get("https://api.coingecko.com/api/v3/simple/price", {
+      params: {
+        ids: "hedera-hashgraph",
+        vs_currencies: "usd",
+      },
+      timeout: 5000,
+    });
+
+    const price = response.data["hedera-hashgraph"]?.usd;
+    if (price) {
+      console.log(`✓ CoinGecko price: $${price.toFixed(4)}`);
+      return price;
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("⚠ CoinGecko API error:", error);
+    return null;
   }
-
-  if (!prices) {
-    // Mock price for development
-    console.warn("⚠  Using mock HBAR/USDC prices");
-    prices = { hbar: 0.15, usdc: 1.0 };
-  }
-
-  const rate = prices.hbar / prices.usdc;
-
-  // Update price history
-  priceHistory.push(rate);
-  if (priceHistory.length > MAX_HISTORY) {
-    priceHistory = priceHistory.slice(-MAX_HISTORY);
-  }
-
-  return { hbar: prices.hbar, usdc: prices.usdc, rate };
 }
 
-/**
- * Calculate annualized realized volatility from price history
- * Uses log returns formula: vol = std(ln(p_t / p_t-1)) * sqrt(252)
- */
-export function calculateRealizedVolatility(prices: number[]): number {
-  if (prices.length < 2) {
-    return 0;
-  }
+// ════════════════════════════════════════════════════════════════
+// MOCK DATA (FALLBACK)
+// ════════════════════════════════════════════════════════════════
 
-  // Calculate log returns
-  const logReturns: number[] = [];
-  for (let i = 1; i < prices.length; i++) {
-    const ret = Math.log(prices[i] / prices[i - 1]);
-    logReturns.push(ret);
-  }
-
-  if (logReturns.length === 0) {
-    return 0;
-  }
-
-  // Calculate mean
-  const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
-
-  // Calculate variance
-  const variance =
-    logReturns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / logReturns.length;
-
-  // Standard deviation
-  const stdDev = Math.sqrt(variance);
-
-  // Annualize (252 trading days per year)
-  const annualizedVol = stdDev * Math.sqrt(252);
-
-  return annualizedVol;
+function getMockPrice(): number {
+  // Return realistic mock price with small random variance
+  const basePrice = 0.08;
+  const variance = (Math.random() - 0.5) * 0.02;
+  const price = basePrice + variance;
+  console.log(`📊 Using mock price: $${price.toFixed(4)}`);
+  return parseFloat(price.toFixed(4));
 }
 
-/**
- * Classify volatility trend based on realized volatility
- */
-export function classifyVolatilityTrend(volatility: number): VolatilityClassification {
-  if (volatility < 0.15) return VolatilityClassification.STABLE;
-  if (volatility < 0.5) return VolatilityClassification.VOLATILE;
-  return VolatilityClassification.EXTREME;
-}
+// ════════════════════════════════════════════════════════════════
+// MAIN INTERFACE
+// ════════════════════════════════════════════════════════════════
 
-/**
- * Get complete volatility data snapshot
- */
 export async function getVolatilityData(): Promise<VolatilityData> {
   try {
-    const priceData = await getHBARPrice();
-    const currentPrice = priceData.rate;
+    let currentPrice: number | null = null;
 
-    // Get 24h ago price from history (rough approximation if only recent data)
-    const price24hAgo = priceHistory.length > 1 ? priceHistory[0] : currentPrice;
-    const priceChange24h = ((currentPrice - price24hAgo) / price24hAgo) * 100;
+    // Try Supra first, fallback to CoinGecko, then mock
+    currentPrice = await getSupraPrice();
+    if (!currentPrice) {
+      currentPrice = await getCoinGeckoPrice();
+    }
+    if (!currentPrice) {
+      currentPrice = getMockPrice();
+    }
 
-    // Calculate realized volatility
-    const realizedVol = calculateRealizedVolatility(priceHistory);
+    // Add to history
+    addPriceToHistory(currentPrice);
 
-    // Classify trend
-    const classification = classifyVolatilityTrend(realizedVol);
+    // Calculate volatility from history
+    const { volatility, trend } = calculateVolatility(priceHistory);
+
+    // Determine recommendation
+    let recommendation = "HOLD";
+    if (trend === VolatilityTrend.STABLE) {
+      recommendation = "MONITOR";
+    } else if (trend === VolatilityTrend.VOLATILE) {
+      recommendation = "HARVEST";
+    } else if (trend === VolatilityTrend.EXTREME) {
+      recommendation = "WITHDRAW";
+    }
+
+    // Get previous price
+    const previousPrice = priceHistory.length > 1 ? priceHistory[priceHistory.length - 2] : currentPrice;
+
+    // Calculate 24h change (mock)
+    const priceChangePercent24h = ((currentPrice - previousPrice) / previousPrice) * 100;
 
     const volatilityData: VolatilityData = {
-      currentPrice,
-      priceChangePercent24h: Math.round(priceChange24h * 100) / 100,
-      realizedVolatility: Math.round(realizedVol * 10000) / 10000,
-      volatilityClassification: classification,
-      dataSource: "coingecko",
+      price: currentPrice,
+      previousPrice,
+      volatility,
+      trend,
+      recommendation,
       timestamp: new Date(),
-      price_feed: {
-        hbar: priceData.hbar,
-        usdc: priceData.usdc,
-        usd_value: currentPrice,
-      },
+      priceChangePercent24h,
+      currentPrice,
+      realizedVolatility: volatility,
     };
 
     console.log(
-      `✓ Volatility: ${volatilityData.volatilityClassification} (${(volatilityData.realizedVolatility * 100).toFixed(2)}%) | ` +
-        `Price: $${volatilityData.currentPrice.toFixed(4)} (${volatilityData.priceChangePercent24h > 0 ? "+" : ""}${volatilityData.priceChangePercent24h.toFixed(2)}%)`,
+      `✓ Volatility: ${trend} (${(volatility * 100).toFixed(2)}%) | Price: $${currentPrice.toFixed(4)}`,
     );
 
     return volatilityData;
   } catch (error) {
-    console.error("✗ Failed to get volatility data:", error);
+    console.error("❌ Error getting volatility data:", error);
 
-    // Return safe default on error
+    // Return safe default
     return {
-      currentPrice: 0.15,
-      priceChangePercent24h: 0,
-      realizedVolatility: 0,
-      volatilityClassification: VolatilityClassification.STABLE,
-      dataSource: "mock",
+      price: 0.08,
+      previousPrice: 0.08,
+      volatility: 0.03,
+      trend: VolatilityTrend.STABLE,
+      recommendation: "HOLD",
       timestamp: new Date(),
-      price_feed: {
-        hbar: 0.15,
-        usdc: 1.0,
-        usd_value: 0.15,
-      },
     };
   }
 }
 
-/**
- * Warm up price history with some initial data
- */
-export async function warmupPriceHistory(numPoints: number = 10): Promise<void> {
-  try {
-    for (let i = 0; i < numPoints; i++) {
-      await getHBARPrice();
-      // Small delay between fetches to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    console.log(`✓ Warmed up price history with ${numPoints} data points`);
-  } catch (error) {
-    console.error("✗ Failed to warm up price history:", error);
-  }
+// Reset history for testing
+export function resetPriceHistory(): void {
+  priceHistory.length = 0;
+  console.log("✓ Price history reset");
 }
-
-/**
- * Get current price history
- */
-export function getPriceHistory(): number[] {
-  return [...priceHistory];
-}
-
-export default {
-  getHBARPrice,
-  getVolatilityData,
-  calculateRealizedVolatility,
-  classifyVolatilityTrend,
-  warmupPriceHistory,
-  getPriceHistory,
-};

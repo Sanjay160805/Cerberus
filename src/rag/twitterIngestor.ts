@@ -1,260 +1,231 @@
 /**
- * Twitter Ingestor - SQLite Edition
- * Reads scraped tweets from local SQLite database and scores geopolitical relevance
+ * Twitter Ingestor — Reads from SQLite (NOT Twitter API)
+ * Fetches cryptotweets from sqlite database and scores relevance
  */
 
 import Database from "better-sqlite3";
 import path from "path";
 import { IngestedTweet } from "../types/index.js";
 
-// Geopolitical keywords to match
+// ════════════════════════════════════════════════════════════════
+// GEOPOLITICAL KEYWORDS
+// ════════════════════════════════════════════════════════════════
+
 const GEOPOLITICAL_KEYWORDS = [
-  // Conflict
+  // Military/Conflict
   "war",
   "invasion",
-  "conflict",
-  "attack",
   "military",
-  "armed",
-  "battle",
+  "attack",
+  "conflict",
   "combat",
-  "siege",
+  "strike",
+  "bombing",
+  "artillery",
 
-  // Sanctions
+  // Political Crisis
   "sanctions",
-  "embargo",
-  "restrictions",
-  "ban",
-  "freeze",
-  "asset freeze",
-  "export control",
-
-  // Political instability
   "coup",
-  "uprising",
   "revolution",
-  "unrest",
-  "riot",
+  "uprising",
   "protest",
-  "civil war",
-  "civil unrest",
-
-  // Diplomatic
-  "diplomatic",
-  "negotiation",
-  "treaty",
-  "agreement",
-  "alliance",
-  "coalition",
-  "talks",
-  "summit",
-
-  // Regional crisis
-  "crisis",
   "emergency",
-  "disaster",
-  "natural disaster",
-  "earthquake",
-  "tsunami",
-  "hurricane",
-  "flood",
-  "economic crisis",
-  "financial crisis",
+  "crisis",
+  "regime",
+  "government collapse",
 
-  // Geopolitical entities
+  // Nuclear/Extreme Threats
+  "nuclear",
+  "radiation",
+  "weapons of mass destruction",
+  "wmd",
+
+  // Crypto Specific
+  "bitcoin",
+  "ethereum",
+  "crypto",
+  "blockchain",
+  "hbar",
+  "hedera",
+  "defi",
+  "nft",
+
+  // Security Threats
+  "hack",
+  "breach",
+  "exploit",
+  "vulnerability",
+  "malware",
+  "threat",
+
+  // Market Indicators
+  "crash",
+  "collapse",
+  "unstable",
+  "volatile",
+  "freefall",
+  "plunge",
+  "drop",
+
+  // Geographic Regions
   "russia",
   "ukraine",
   "china",
   "taiwan",
   "iran",
-  "israel",
-  "palestine",
   "north korea",
-  "south korea",
   "middle east",
-  "usdc",
-  "hbar",
-  "crypto",
-  "bitcoin",
-  "ethereum",
+  "israel",
+  "usa",
+  "eu",
+  "europe",
+
+  // Regulatory
+  "ban",
+  "freeze",
+  "restrict",
+  "regulation",
+  "compliance",
 ];
+
+// ════════════════════════════════════════════════════════════════
+// SQLITE CONNECTION
+// ════════════════════════════════════════════════════════════════
 
 let db: Database.Database | null = null;
 
-/**
- * Initialize database connection
- */
-function initDatabase(): Database.Database {
+function getDatabase(): Database.Database {
   if (db) return db;
 
   const dbPath = path.join(process.cwd(), "crypto_tweets.db");
-  db = new Database(dbPath);
 
-  // Ensure table exists
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS tweets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT,
-      text TEXT,
-      time TEXT,
-      likes TEXT,
-      retweets TEXT,
-      replies TEXT,
-      is_crypto BOOLEAN,
-      scraped_at TEXT
-    )
-  `);
-
-  console.log(`✓ Connected to SQLite database: ${dbPath}`);
-  return db;
-}
-
-/**
- * Calculate geopolitical relevance score for tweet
- */
-function calculateRelevanceScore(text: string): number {
-  const lowerText = text.toLowerCase();
-  let score = 0;
-
-  for (const keyword of GEOPOLITICAL_KEYWORDS) {
-    if (lowerText.includes(keyword)) {
-      score += 0.15;
-    }
-  }
-
-  // Normalize score to 0-1 range
-  score = Math.min(score, 1.0);
-
-  return score;
-}
-
-/**
- * Extract geopolitical keywords from tweet
- */
-function extractKeywords(text: string): string[] {
-  const lowerText = text.toLowerCase();
-  const keywords: string[] = [];
-
-  for (const keyword of GEOPOLITICAL_KEYWORDS) {
-    if (lowerText.includes(keyword)) {
-      keywords.push(keyword);
-    }
-  }
-
-  return [...new Set(keywords)]; // Remove duplicates
-}
-
-/**
- * Convert string values to proper types
- */
-function convertDatabaseRow(row: any): IngestedTweet {
-  return {
-    id: row.id.toString(),
-    username: row.username || "unknown",
-    text: row.text || "",
-    time: row.time || new Date().toISOString(),
-    likes: parseInt(row.likes) || 0,
-    retweets: parseInt(row.retweets) || 0,
-    replies: parseInt(row.replies) || 0,
-    relevanceScore: 0, // Will be calculated
-    geopoliticalKeywords: [],
-    scrapedAt: new Date(row.scraped_at || Date.now()),
-  };
-}
-
-/**
- * Fetch latest geopolitical tweets from SQLite database
- * Returns 20 most recent tweets with relevance scores
- */
-export async function fetchGeopoliticalTweets(): Promise<IngestedTweet[]> {
   try {
-    const database = initDatabase();
-
-    // Fetch 20 most recent tweets
-    const stmt = database.prepare(`
-      SELECT id, username, text, time, likes, retweets, replies, is_crypto, scraped_at
-      FROM tweets
-      ORDER BY scraped_at DESC
-      LIMIT 20
-    `);
-
-    const rows = stmt.all();
-
-    // Convert to IngestedTweet array with relevance scores
-    const tweets: IngestedTweet[] = rows.map((row: any) => {
-      const tweet = convertDatabaseRow(row);
-      tweet.relevanceScore = calculateRelevanceScore(tweet.text);
-      tweet.geopoliticalKeywords = extractKeywords(tweet.text);
-      return tweet;
-    });
-
-    // Filter by minimum relevance threshold and sort by score
-    const filtered = tweets
-      .filter((t) => t.relevanceScore > 0)
-      .sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-    console.log(
-      `✓ Fetched ${filtered.length} geopolitical tweets from database`,
-    );
-    return filtered;
+    db = new Database(dbPath);
+    console.log(`✓ Connected to SQLite: ${dbPath}`);
+    return db;
   } catch (error) {
-    console.error("✗ Error fetching tweets:", error);
-    return [];
-  }
-}
-
-/**
- * Add a new tweet to the database (for testing)
- */
-export async function addTweet(
-  username: string,
-  text: string,
-  likes: number = 0,
-  retweets: number = 0,
-  replies: number = 0,
-): Promise<number> {
-  try {
-    const database = initDatabase();
-    const stmt = database.prepare(`
-      INSERT INTO tweets (username, text, time, likes, retweets, replies, is_crypto, scraped_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      username,
-      text,
-      new Date().toISOString(),
-      likes.toString(),
-      retweets.toString(),
-      replies.toString(),
-      true,
-      new Date().toISOString(),
-    );
-
-    return (result.lastInsertRowid as number) || 0;
-  } catch (error) {
-    console.error("✗ Error adding tweet:", error);
+    console.warn(`⚠ Could not open crypto_tweets.db: ${error}`);
     throw error;
   }
 }
 
-/**
- * Get tweet count from database
- */
+// ════════════════════════════════════════════════════════════════
+// RELEVANCE SCORING
+// ════════════════════════════════════════════════════════════════
+
+function calculateRelevanceScore(text: string): {
+  score: number;
+  keywords: string[];
+} {
+  const lowerText = text.toLowerCase();
+  const matchedKeywords: string[] = [];
+  let scoreContribution = 0;
+
+  // Check each keyword
+  for (const keyword of GEOPOLITICAL_KEYWORDS) {
+    const regex = new RegExp(`\\b${keyword}\\b`, "gi");
+    const matches = lowerText.match(regex);
+
+    if (matches) {
+      const count = matches.length;
+      matchedKeywords.push(keyword);
+      // More matches = higher score (capped per keyword)
+      scoreContribution += Math.min(count * 0.1, 0.3);
+    }
+  }
+
+  // Normalize to 0-1
+  const score = Math.min(scoreContribution / 2, 1.0);
+
+  return { score, keywords: matchedKeywords };
+}
+
+// ════════════════════════════════════════════════════════════════
+// FETCH TWEETS FROM SQLITE
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchGeopoliticalTweets(): Promise<IngestedTweet[]> {
+  try {
+    const database = getDatabase();
+
+    // Query: get last 20 tweets ordered by scraped_at DESC
+    const query = `
+      SELECT id, username, text, time, likes, retweets, replies, is_crypto, scraped_at
+      FROM tweets
+      WHERE is_crypto = 1
+      ORDER BY scraped_at DESC
+      LIMIT 20
+    `;
+
+    const rows = database.prepare(query).all() as any[];
+
+    if (rows.length === 0) {
+      console.log("⚠ No tweets found in database");
+      return [];
+    }
+
+    // Transform and score tweets
+    const ingestedTweets: IngestedTweet[] = rows
+      .map((row) => {
+        const { score, keywords } = calculateRelevanceScore(row.text);
+
+        return {
+          id: row.id,
+          username: row.username,
+          text: row.text,
+          time: new Date(row.time),
+          likes: row.likes || 0,
+          retweets: row.retweets || 0,
+          replies: row.replies || 0,
+          relevanceScore: score,
+          geopoliticalKeywords: keywords,
+          scrapedAt: new Date(row.scraped_at),
+          is_crypto: row.is_crypto === 1,
+        };
+      })
+      // Filter: only tweets with relevance > 0
+      .filter((t) => t.relevanceScore > 0)
+      // Sort by relevance descending
+      .sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+    console.log(
+      `✓ Fetched ${ingestedTweets.length} relevant tweets from database`,
+    );
+    return ingestedTweets;
+  } catch (error: any) {
+    if (error.code === "SQLITE_CANTOPEN") {
+      console.warn(
+        "⚠ crypto_tweets.db not found. Run Python scraper first.",
+      );
+      return [];
+    }
+    console.error("❌ Error fetching tweets:", error);
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// GET TWEET COUNT
+// ════════════════════════════════════════════════════════════════
+
 export async function getTweetCount(): Promise<number> {
   try {
-    const database = initDatabase();
-    const result = database.prepare("SELECT COUNT(*) as count FROM tweets").get();
-    return (result as any).count || 0;
+    const database = getDatabase();
+    const result = database
+      .prepare("SELECT COUNT(*) as count FROM tweets WHERE is_crypto = 1")
+      .get() as { count: number };
+
+    return result.count;
   } catch (error) {
-    console.error("✗ Error getting tweet count:", error);
+    console.warn("⚠ Could not get tweet count:", error);
     return 0;
   }
 }
 
-/**
- * Close database connection
- */
+// ════════════════════════════════════════════════════════════════
+// CLOSE DATABASE
+// ════════════════════════════════════════════════════════════════
+
 export function closeDatabase(): void {
   if (db) {
     db.close();

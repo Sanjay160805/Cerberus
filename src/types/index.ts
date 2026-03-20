@@ -1,9 +1,11 @@
 /**
  * SENTINEL Type Definitions
- * Complete interface definitions for the geopolitical AI vault keeper agent
+ * Core interfaces for the geopolitical-aware vault keeper
  */
 
-// ============ Threat Analysis Interfaces ============
+// ════════════════════════════════════════════════════════════════
+// THREAT ASSESSMENT
+// ════════════════════════════════════════════════════════════════
 
 export enum ThreatLevel {
   LOW = "LOW",
@@ -13,189 +15,122 @@ export enum ThreatLevel {
 }
 
 export interface ThreatSignal {
-  score: number;
+  score: number; // 0.0 to 1.0
   level: ThreatLevel;
-  triggers: string[];
-  recommendation: "HOLD" | "HARVEST" | "WITHDRAW" | "EMERGENCY_EXIT";
-  reasoning: string;
+  triggers: string[]; // Keywords or patterns detected
+  recommendation: string; // Action to take
+  reasoning: string; // Explanation of threat assessment
   timestamp: Date;
-  source: string;
+  source: string; // "twitter" | "hcs" | "manual"
 }
 
-// ============ Volatility Analysis Interfaces ============
+// ════════════════════════════════════════════════════════════════
+// VOLATILITY DATA
+// ════════════════════════════════════════════════════════════════
 
-export enum VolatilityClassification {
+export enum VolatilityTrend {
   STABLE = "STABLE",
   VOLATILE = "VOLATILE",
   EXTREME = "EXTREME",
 }
 
 export interface VolatilityData {
-  currentPrice: number;
-  priceChangePercent24h: number;
-  realizedVolatility: number;
-  volatilityClassification: VolatilityClassification;
-  dataSource: "supra_oracle" | "coingecko" | "mock";
+  price: number; // Current price in USD
+  previousPrice: number; // Previous price sample
+  volatility: number; // Realized volatility (0.0 to 1.0)
+  trend: VolatilityTrend;
+  recommendation: string; // Action based on volatility
   timestamp: Date;
-  price_feed: {
-    hbar: number;
-    usdc: number;
-    usd_value: number;
-  };
+  priceChangePercent24h?: number;
+  currentPrice?: number;
+  realizedVolatility?: number;
 }
 
-// ============ Agent Decision Interfaces ============
-
-export interface AgentDecision {
-  action: "HOLD" | "HARVEST" | "WITHDRAW" | "EMERGENCY_EXIT";
-  threat_level: ThreatLevel;
-  volatility_level: VolatilityClassification;
-  amount?: number;
-  reasoning: string;
-  timestamp: Date;
-  hcs_sequence_number?: number;
-  txHash?: string;
-}
-
-// ============ Vault State Interface ============
+// ════════════════════════════════════════════════════════════════
+// VAULT STATE
+// ════════════════════════════════════════════════════════════════
 
 export interface VaultState {
-  assets: number;
-  totalSupply: number;
-  pricePerShare: number;
-  tvl: number;
-  lastHarvest?: Date;
-  lastUpdate: Date;
+  totalAssets: number; // Total vault TVL in USD
+  sharePrice: number; // Price per share
+  userBalance: number; // User's balance in USD
+  userShares: number; // User's share count
+  paused: boolean; // Is vault paused?
+  vaultAddress: string; // Contract address
+  tvl?: number; // Alias for totalAssets
 }
 
-// ============ RAG Interfaces ============
+// ════════════════════════════════════════════════════════════════
+// AGENT DECISION
+// ════════════════════════════════════════════════════════════════
+
+export enum AgentAction {
+  HOLD = "HOLD",
+  HARVEST = "HARVEST",
+  WITHDRAW = "WITHDRAW",
+  EMERGENCY_EXIT = "EMERGENCY_EXIT",
+}
+
+export interface AgentDecision {
+  action: AgentAction;
+  threat: ThreatLevel; // Simplified threat level
+  volatility: VolatilityTrend; // Simplified volatility trend
+  reasoning: string;
+  timestamp: Date;
+  cycleTime?: number; // Milliseconds taken for cycle
+  txHash?: string; // Transaction hash if on-chain action taken
+  hcsSequence?: number; // HCS message sequence if logged
+}
+
+// ════════════════════════════════════════════════════════════════
+// INGESTED TWEET
+// ════════════════════════════════════════════════════════════════
 
 export interface IngestedTweet {
-  id: string;
+  id: string | number;
   username: string;
   text: string;
-  time: string;
+  time: string | Date;
   likes: number;
   retweets: number;
   replies: number;
-  relevanceScore: number;
-  geopoliticalKeywords: string[];
+  relevanceScore: number; // 0.0 to 1.0
+  geopoliticalKeywords: string[]; // Keywords matched
   scrapedAt: Date;
+  is_crypto?: boolean; // From SQLite
 }
 
-// ============ Chat Message Interface ============
+// ════════════════════════════════════════════════════════════════
+// CHAT MESSAGE
+// ════════════════════════════════════════════════════════════════
+
+export enum ChatRole {
+  USER = "user",
+  AGENT = "agent",
+}
 
 export interface ChatMessage {
-  role: "user" | "assistant";
+  role: ChatRole;
   content: string;
   timestamp: Date;
-  messageId?: string;
 }
 
-// ============ LangChain Document Type ============
+// ════════════════════════════════════════════════════════════════
+// API RESPONSE TYPES
+// ════════════════════════════════════════════════════════════════
 
-export interface Document {
-  pageContent: string;
-  metadata: {
-    source?: string;
-    tweetId?: string;
-    username?: string;
-    relevanceScore?: number;
-    [key: string]: any;
-  };
-}
-
-// ============ Cycle Result Interface ============
-
-export interface CycleResult {
-  decision: AgentDecision;
-  threatSignal: ThreatSignal;
-  volatilityData: VolatilityData;
-  vaultState: VaultState;
-  hcsLogSequenceNumber?: number;
-  executedAt: Date;
-}
-
-// ============ Agent Tool Input Interfaces ============
-
-export interface AnalyzeSentimentInput {
-  recentTweets?: IngestedTweet[];
-}
-
-export interface GetVolatilityDataInput {
-  includeHistorical?: boolean;
-}
-
-export interface GetVaultStateInput {}
-
-export interface HarvestVaultRewardsInput {}
-
-export interface WithdrawFromVaultInput {
-  amount: number;
-}
-
-export interface EmergencyExitVaultInput {}
-
-export interface LogDecisionToHCSInput {
-  decision: AgentDecision;
-  threatSignal: ThreatSignal;
-  volatilityData: VolatilityData;
-}
-
-// ============ WebSocket Message Types ============
-
-export interface WebSocketMessage {
-  type: "status" | "threat" | "volatility" | "decision" | "chat" | "error";
-  data: any;
+export interface StatusResponse {
+  threat: ThreatSignal | null;
+  volatility: VolatilityData | null;
+  vault: VaultState | null;
+  hbarPrice?: number;
   timestamp: Date;
+  cycleCount: number;
 }
 
-// ============ Configuration Interface ============
-
-export interface SentinelConfig {
-  hedera: {
-    accountId: string;
-    privateKey: string;
-    network: "testnet" | "mainnet";
-    topicId?: string;
-  };
-  hedera_evm: {
-    privateKey: string;
-    userAddress: string;
-    rpcUrl: string;
-  };
-  openai: {
-    apiKey: string;
-  };
-  vault: {
-    hbarUsdcAddress: string;
-    rpcUrl: string;
-  };
-  supra: {
-    oracleAddress: string;
-  };
-  monitoring: {
-    threatThreshold: number;
-    volatilityThreshold: number;
-    monitoringIntervalMs: number;
-  };
-  server: {
-    port: number;
-    nodeEnv: "development" | "production";
-  };
-}
-
-// ============ Error Handling ============
-
-export class SentinelError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public details?: any,
-  ) {
-    super(message);
-    this.name = "SentinelError";
-  }
+export interface ChatResponse {
+  response: string;
+  timestamp: Date;
 }
 
 // ============ Dashboard Status ============
@@ -216,10 +151,20 @@ export interface HCSAuditEntry {
   sequenceNumber: number;
   action: string;
   threatLevel: ThreatLevel;
-  volatilityLevel: VolatilityClassification;
+  volatilityLevel: VolatilityTrend;
   reasoning: string;
   txHash?: string;
   timestamp: Date;
   topicId: string;
   messageHash: string;
+}
+
+// ════════════════════════════════════════════════════════════════
+// WEBSOCKET MESSAGES
+// ════════════════════════════════════════════════════════════════
+
+export interface WebSocketMessage {
+  type: "decision" | "status" | "error";
+  data: any;
+  timestamp: Date;
 }

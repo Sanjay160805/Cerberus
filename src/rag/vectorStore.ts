@@ -1,9 +1,10 @@
 /**
  * Vector Store for RAG Pipeline
  * Converts tweets to embeddings and stores them for retrieval
+ * Uses Google Generative AI embeddings (free tier)
  */
 
-import { OpenAIEmbeddings } from "@langchain/openai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { Document } from "@langchain/core/documents";
 import { IngestedTweet } from "../types/index.js";
@@ -12,20 +13,20 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 let vectorStore: MemoryVectorStore | null = null;
-let embeddings: OpenAIEmbeddings | null = null;
+let embeddings: GoogleGenerativeAIEmbeddings | null = null;
 
 /**
- * Initialize embeddings model
+ * Initialize embeddings model (Google Gemini free tier)
  */
-function getEmbeddings(): OpenAIEmbeddings {
+function getEmbeddings(): GoogleGenerativeAIEmbeddings {
   if (!embeddings) {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY not set in .env");
+      throw new Error("GOOGLE_API_KEY not set in .env");
     }
-    embeddings = new OpenAIEmbeddings({
-      openAIApiKey: apiKey,
-      modelName: "text-embedding-3-small",
+    embeddings = new GoogleGenerativeAIEmbeddings({
+      apiKey,
+      model: "text-embedding-004",
     });
   }
   return embeddings;

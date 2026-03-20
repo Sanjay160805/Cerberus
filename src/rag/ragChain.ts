@@ -1,9 +1,9 @@
 /**
- * RAG Chain with GPT-4o Threat Analysis
- * Combines signal retrieval with GPT-4o reasoning to output structured threat assessment
+ * RAG Chain with Gemini Threat Analysis
+ * Combines signal retrieval with Google Gemini reasoning to output structured threat assessment
  */
 
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { ThreatSignal, ThreatLevel } from "../types/index.js";
 import { buildVectorStore, retrieveRelevantSignals } from "./vectorStore.js";
@@ -39,22 +39,21 @@ OUTPUT FORMAT (valid JSON only):
   "reasoning": "explanation"
 }}`;
 
-let model: ChatOpenAI | null = null;
+let model: ChatGoogleGenerativeAI | null = null;
 
 /**
- * Initialize GPT-4o chat model
+ * Initialize Gemini chat model (free tier, gemini-1.5-flash)
  */
-function getChatModel(): ChatOpenAI {
+function getChatModel(): ChatGoogleGenerativeAI {
   if (!model) {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY not set in .env");
+      throw new Error("GOOGLE_API_KEY not set in .env");
     }
-    model = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: "gpt-4o",
+    model = new ChatGoogleGenerativeAI({
+      apiKey,
+      model: "gemini-1.5-flash",
       temperature: 0, // Deterministic for critical decisions
-      timeout: 10000,
     });
   }
   return model;
@@ -76,7 +75,7 @@ function formatSignalsForPrompt(
 }
 
 /**
- * Parse JSON response from GPT-4o
+ * Parse JSON response from Gemini
  */
 function parseThreatResponse(response: string): any {
   // Extract JSON from response (might be wrapped in markdown)
@@ -118,7 +117,7 @@ export async function analyzeThreatLevel(
     const content = response.content;
 
     if (typeof content !== "string") {
-      throw new Error("Unexpected response type from GPT-4o");
+      throw new Error("Unexpected response type from Gemini");
     }
 
     // Parse response
@@ -131,7 +130,7 @@ export async function analyzeThreatLevel(
       recommendation: parsed.recommendation || "HOLD",
       reasoning: parsed.reasoning || "",
       timestamp: new Date(),
-      source: "rag_gpt4o",
+      source: "rag_gemini",
     };
 
     console.log(
