@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTINEL — Geopolitical Vault Keeper</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: #f8f9fb;
+      color: #1f2937;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 2000px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ═══════════════════════════════════ HEADER ═══════════════════════════════════ */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3rem;
+      padding: 1.5rem 2rem;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 2rem; }
+
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      letter-spacing: 0.5px;
+    }
+
+    .logo-emoji { 
+      font-size: 1.5rem;
+      background: none;
+      -webkit-text-fill-color: unset;
+    }
+
+    .subtitle {
+      font-size: 0.75rem;
+      color: #6b7280;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 1.5rem; }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: #f0f9ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      color: #1e40af;
+      text-transform: uppercase;
+    }
+
+    .status-indicator:hover {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+    }
+
+    .ws-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 4px #ef4444;
+    }
+
+    .ws-dot.connected {
+      background: #10b981;
+      box-shadow: 0 0 4px #10b981;
+    }
+
+    /* ═══════════════════════════════════ BUTTON ═══════════════════════════════════ */
+    button {
+      padding: 0.625rem 1.25rem;
+      background: #2563eb;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      font-family: inherit;
+      font-size: 0.875rem;
+      letter-spacing: 0;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+      text-transform: none;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    button:active:not(:disabled) { transform: translateY(0); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ═══════════════════════════════════ THREAT BANNER ═══════════════════════════════════ */
+    .threat-banner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem 2rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      border-left: 4px solid;
+      transition: all 0.3s ease;
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .threat-banner.low {
+      background: #f0fdf4;
+      border-left-color: #10b981;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .threat-banner.medium {
+      background: #fffbeb;
+      border-left-color: #f59e0b;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .threat-banner.high {
+      background: #fef2f2;
+      border-left-color: #ef4444;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .threat-banner.critical {
+      background: #fef2f2;
+      border-left-color: #dc2626;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .threat-left { display: flex; gap: 1.5rem; align-items: center; flex: 1; }
+
+    .threat-badge {
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: transparent;
+      border: 1.5px solid;
+      white-space: nowrap;
+    }
+
+    .threat-badge.low { background: #dcfce7; color: #166534; border-color: #10b981; }
+    .threat-badge.medium { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
+    .threat-badge.high { background: #fee2e2; color: #991b1b; border-color: #ef4444; }
+    .threat-badge.critical { background: #fee2e2; color: #7f1d1d; border-color: #dc2626; }
+
+    .threat-text h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+      letter-spacing: 0;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .threat-text p {
+      font-size: 0.9rem;
+      color: #4b5563;
+      line-height: 1.5;
+      max-width: 500px;
+    }
+
+    .threat-ring {
+      width: 120px;
+      height: 120px;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .threat-ring svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .threat-ring-circle { fill: none; stroke-width: 6; stroke-linecap: round; transition: all 0.3s ease; }
+
+    /* ═══════════════════════════════════ GRIDS & CARDS ═══════════════════════════════════ */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .card:hover {
+      border-color: #d1d5db;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-title {
+      font-size: 0.875rem;
+      color: #1f2937;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 1rem;
+      font-weight: 700;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+
+    .stat-change {
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      display: inline-block;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .stat-change.up { background: #dcfce7; color: #166534; }
+    .stat-change.down { background: #fee2e2; color: #991b1b; }
+
+    /* ═══════════════════════════════════ SCROLLABLE SECTIONS ═══════════════════════════════════ */
+    .scrollable {
+      max-height: 340px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .scrollable::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .scrollable::-webkit-scrollbar-track {
+      background: #f3f4f6;
+      border-radius: 10px;
+    }
+
+    .scrollable::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 10px;
+    }
+
+    .scrollable::-webkit-scrollbar-thumb:hover {
+      background: #9ca3af;
+    }
+
+    /* ═══════════════════════════════════ SIGNAL FEED ═══════════════════════════════════ */
+    .signal-item {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #f3f4f6;
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    .signal-item:last-child {
+      border-bottom: none;
+    }
+
+    .signal-item:hover {
+      background: #f9fafb;
+      border-radius: 4px;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+
+    .signal-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .signal-dot.critical { background: #dc2626; }
+    .signal-dot.high { background: #f97316; }
+    .signal-dot.medium { background: #f59e0b; }
+    .signal-dot.low { background: #10b981; }
+
+    .signal-content { display: flex; flex-direction: column; gap: 0.25rem; }
+    .signal-text { color: #1f2937; font-weight: 500; }
+    .signal-time { color: #9ca3af; font-size: 0.75rem; }
+
+    /* ═══════════════════════════════════ DECISION LOG ═══════════════════════════════════ */
+    .decision-item {
+      padding: 0.75rem;
+      background: transparent;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      border-left: 3px solid;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+
+    .decision-item:hover {
+      background: #f9fafb;
+    }
+
+    .decision-item.HOLD { border-left-color: #10b981; }
+    .decision-item.HARVEST { border-left-color: #2563eb; }
+    .decision-item.WITHDRAW { border-left-color: #f59e0b; }
+    .decision-item.EMERGENCY_EXIT { border-left-color: #dc2626; }
+
+    .decision-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+
+    .decision-badge {
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .decision-badge.HOLD { background: #dcfce7; color: #166534; }
+    .decision-badge.HARVEST { background: #dbeafe; color: #1e40af; }
+    .decision-badge.WITHDRAW { background: #fef3c7; color: #92400e; }
+    .decision-badge.EMERGENCY_EXIT { background: #fee2e2; color: #991b1b; }
+
+    .decision-time { color: #9ca3af; font-size: 0.75rem; }
+    .decision-reason { color: #4b5563; margin-top: 0.5rem; line-height: 1.4; }
+
+    /* ═══════════════════════════════════ CHAT ═══════════════════════════════════ */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 420px;
+      gap: 0.75rem;
+    }
+
+    .quick-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+
+    .quick-btn {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.75rem;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      color: #1f2937;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .quick-btn:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+      transform: translateY(-1px);
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      background: #fafbfc;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .chat-message {
+      margin-bottom: 0;
+    }
+
+    .chat-message.user { text-align: right; }
+
+    .chat-bubble {
+      display: inline-block;
+      padding: 0.6rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      max-width: 85%;
+      word-wrap: break-word;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .chat-message.user .chat-bubble {
+      background: #2563eb;
+      color: white;
+      border-radius: 14px 4px 14px 14px;
+    }
+
+    .chat-message.assistant .chat-bubble {
+      background: #f3f4f6;
+      color: #1f2937;
+      border-radius: 4px 14px 14px 14px;
+    }
+
+    .chat-input-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 0.6rem 0.85rem;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      color: #1f2937;
+      font-family: inherit;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    .chat-input::placeholder {
+      color: #9ca3af;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    /* ═══════════════════════════════════ HCS AUDIT ═══════════════════════════════════ */
+    .hcs-audit { grid-column: 1 / -1; }
+
+    .hcs-item {
+      padding: 0.75rem;
+      background: transparent;
+      border-left: 3px solid #7c3aed;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+      transition: all 0.2s ease;
+    }
+
+    .hcs-item:hover {
+      background: #f9fafb;
+    }
+
+    .hcs-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-weight: 700; }
+    .hcs-seq { color: #7c3aed; font-family: inherit; }
+
+    .hcs-link {
+      color: #2563eb;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+    }
+
+    .hcs-link:hover { text-decoration: underline; color: #1d4ed8; }
+    .hcs-details { color: #4b5563; line-height: 1.4; }
+
+    /* ═══════════════════════════════════ RESPONSIVE ═══════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      header { flex-direction: column; gap: 1rem; }
+      .header-left { width: 100%; }
+      .header-right { width: 100%; justify-content: space-between; }
+    }
+
+    @media (max-width: 640px) {
+      .container { padding: 1rem 1.25rem; }
+      header { padding: 1rem; }
+      .logo { font-size: 1.3rem; }
+      .logo-emoji { font-size: 1.1rem; }
+      .threat-text h2 { font-size: 1.2rem; }
+      .stat-value { font-size: 1.5rem; }
+      .grid-3 { grid-template-columns: 1fr; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-emoji">🛡️</span>
+        SENTINEL
+      </div>
+      <div>
+        <div class="subtitle">Geopolitical Vault Keeper</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-indicator">
+        <span>🔴 Live</span>
+        <div class="ws-dot" id="liveIndicator"></div>
+      </div>
+      <button id="runBtn">▶ Run Agent Cycle</button>
+    </div>
+  </header>
+
+  <!-- THREAT BANNER -->
+  <div id="threatBanner" class="threat-banner low">
+    <div class="threat-left">
+      <div class="threat-badge low" id="threatBadge">LOW</div>
+      <div class="threat-text">
+        <h2 id="threatTitle">Threat: LOW</h2>
+        <p id="threatDesc">Market conditions stable, monitoring ongoing...</p>
+      </div>
+    </div>
+    <div class="threat-ring" id="threatRing">
+      <svg viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="50" stroke="#d0d5dd" stroke-width="6" fill="none" opacity="0.3"/>
+        <circle id="threatCircle" cx="60" cy="60" r="50" stroke="#68d391" stroke-width="6" fill="none" style="stroke-dasharray: 314; stroke-dashoffset: 0;"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- STATS GRID -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">💰 Vault TVL</div>
+      <div class="stat-value" id="vaultTVL">$125,000</div>
+      <div class="stat-label">Total Value Locked</div>
+    </div>
+    <div class="card">
+      <div class="card-title">💹 HBAR Price</div>
+      <div class="stat-value" id="hbarPrice">$0.180</div>
+      <div class="stat-label">HBAR/USDC Exchange</div>
+      <div id="priceChange" class="stat-change up">↑ +2.4%</div>
+    </div>
+    <div class="card">
+      <div class="card-title">📈 Volatility</div>
+      <div class="stat-value" id="volatility">0.34</div>
+      <div class="stat-label">Annualized (p.a.)</div>
+      <div id="volClass" class="stat-label" style="margin-top: 0.75rem;">Classification: STABLE</div>
+    </div>
+  </div>
+
+  <!-- CONTENT GRID -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📡 Live Signal Feed</div>
+      <div class="scrollable" id="signalFeed">
+        <div class="signal-item">
+          <div class="signal-dot low"></div>
+          <div class="signal-content">
+            <div class="signal-text">Market slightly positive, geopolitical calm</div>
+            <div class="signal-time">Just now</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Agent Decision Log</div>
+      <div class="scrollable" id="decisionLog">
+        <div class="decision-item HOLD">
+          <div class="decision-header">
+            <span class="decision-badge HOLD">HOLD</span>
+            <span class="decision-time">12:00 PM</span>
+          </div>
+          <div class="decision-reason">No immediate threats detected. Vault position secure.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">💬 Chat Interface</div>
+      <div class="chat-container">
+        <div class="quick-buttons">
+          <button class="quick-btn" onclick="sendQuick('What is the current threat level?')">Threat Level?</button>
+          <button class="quick-btn" onclick="sendQuick('Check vault status')">Vault Status</button>
+          <button class="quick-btn" onclick="sendQuick('Harvest rewards now')">Harvest Now?</button>
+          <button class="quick-btn" onclick="sendQuick('Protect my position')">Protect Position</button>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-group">
+          <input type="text" class="chat-input" id="chatInput" placeholder="Ask SENTINEL..." onkeypress="handleChatKeypress(event)">
+          <button onclick="sendMessage()" style="width: auto; min-width: 80px;">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔗 HCS Audit Trail</div>
+      <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem;">Every decision logged to Hedera Consensus Service</p>
+      <div class="scrollable" id="hcsAudit">
+        <div class="hcs-item">
+          <div class="hcs-header">
+            <span class="hcs-seq">Seq #0</span>
+            <span class="hcs-link">View on HashScan →</span>
+          </div>
+          <div class="hcs-details">Waiting for first autonomous cycle...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FULL-WIDTH HCS -->
+  <div class="card hcs-audit" style="margin-top: 2rem;">
+    <div class="card-title" style="margin-bottom: 1.5rem;">📜 Full Audit History</div>
+    <div id="fullAudit" style="color: #94a3b8; text-align: center; padding: 2rem;">
+      No audit entries yet. Decisions will appear here.
+    </div>
+  </div>
+</div>
+
+<script>
+  // ════════════════════════════════════════════════════════════════
+  // WebSocket Management
+  // ════════════════════════════════════════════════════════════════
+
+  let ws = null;
+  let wsConnected = false;
+
+  function initWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${protocol}://${window.location.host}`;
+
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log("✓ WebSocket connected");
+      wsConnected = true;
+      updateWSIndicator(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        handleMessage(message);
+      } catch (error) {
+        console.error("✗ Parse error:", error);
+      }
+    };
+
+    ws.onerror = () => {
+      console.error("✗ WebSocket error");
+      wsConnected = false;
+      updateWSIndicator(false);
+    };
+
+    ws.onclose = () => {
+      console.log("✗ WebSocket closed");
+      wsConnected = false;
+      updateWSIndicator(false);
+      setTimeout(initWebSocket, 3000);
+    };
+  }
+
+  function updateWSIndicator(connected) {
+    const indicator = document.getElementById("liveIndicator");
+    if (connected) {
+      indicator.classList.add("connected");
+    } else {
+      indicator.classList.remove("connected");
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // Message Handlers
+  // ════════════════════════════════════════════════════════════════
+
+  function handleMessage(message) {
+    if (message.type === "status" || message.type === "status_update") {
+      updateDashboard(message.data);
+    } else if (message.type === "decision") {
+      updateDecision(message.data);
+    }
+  }
+
+  function updateDashboard(data) {
+    if (!data) return;
+
+    if (data.threat) {
+      updateThreatRing(data.threat.score, data.threat.level);
+      document.getElementById("threatLevel").textContent = data.threat.level;
+      document.getElementById("threatTitle").textContent = `Threat: ${data.threat.level}`;
+      document.getElementById("threatDesc").textContent = data.threat.reasoning || "Analyzing signals...";
+    }
+
+    if (data.volatility) {
+      const vol = (data.volatility.realizedVolatility || 0) * 100;
+      document.getElementById("volatility").textContent = vol.toFixed(1) + "%";
+      document.getElementById("volClass").textContent = `Classification: ${data.volatility.volatilityClassification || "STABLE"}`;
+      document.getElementById("hbarPrice").textContent = "$" + (data.volatility.currentPrice || 0.15).toFixed(4);
+
+      const change = data.volatility.priceChangePercent24h || 0;
+      const el = document.getElementById("priceChange");
+      el.textContent = (change > 0 ? "↑ " : "↓ ") + Math.abs(change).toFixed(2) + "%";
+      el.className = `stat-change ${change > 0 ? "up" : "down"}`;
+    }
+
+    if (data.vault) {
+      document.getElementById("vaultTVL").textContent = "$" + (data.vault.tvl || 0).toFixed(0);
+    }
+  }
+
+  function updateThreatRing(score, level) {
+    const circle = document.getElementById("threatCircle");
+    const banner = document.getElementById("threatBanner");
+    const badge = document.getElementById("threatBadge");
+    const colorMap = { low: "#68d391", medium: "#f6ad55", high: "#fc8181", critical: "#ff4757" };
+    const levelLower = (level || "low").toLowerCase();
+
+    const circumference = 2 * Math.PI * 50;
+    const offset = circumference - (score || 0) * circumference;
+
+    circle.setAttribute("stroke", colorMap[levelLower]);
+    circle.style.strokeDashoffset = offset;
+
+    banner.className = `threat-banner ${levelLower}`;
+    badge.className = `threat-badge ${levelLower}`;
+    badge.textContent = level;
+  }
+
+  function updateDecision(result) {
+    if (!result || !result.decision) return;
+    const log = document.getElementById("decisionLog");
+    const entry = document.createElement("div");
+    entry.className = `decision-item ${result.decision.action}`;
+    entry.innerHTML = `
+      <div class="decision-header">
+        <span class="decision-badge ${result.decision.action}">${result.decision.action}</span>
+        <span class="decision-time">${new Date().toLocaleTimeString()}</span>
+      </div>
+      <div class="decision-reason">${result.decision.reasoning}</div>
+    `;
+    if (log.children[0].textContent.includes("No immediate threats")) log.innerHTML = "";
+    log.insertBefore(entry, log.firstChild);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // Chat Functions
+  // ════════════════════════════════════════════════════════════════
+
+  async function sendMessage() {
+    const input = document.getElementById("chatInput");
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    addChatMessage(msg, "user");
+    input.value = "";
+
+    try {
+      const resp = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        addChatMessage(data.response, "assistant");
+      }
+    } catch (e) {
+      addChatMessage("Error connecting to agent", "assistant");
+    }
+  }
+
+  function addChatMessage(text, role) {
+    const el = document.createElement("div");
+    el.className = `chat-message ${role}`;
+    el.innerHTML = `<div class="chat-bubble">${text}</div>`;
+    document.getElementById("chatMessages").appendChild(el);
+    document.getElementById("chatMessages").scrollTop = document.getElementById("chatMessages").scrollHeight;
+  }
+
+  function sendQuick(msg) {
+    document.getElementById("chatInput").value = msg;
+    sendMessage();
+  }
+
+  function handleChatKeypress(e) {
+    if (e.key === "Enter") sendMessage();
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // Initialization
+  // ════════════════════════════════════════════════════════════════
+
+  document.getElementById("runBtn").addEventListener("click", async () => {
+    try {
+      await fetch("/api/agent/run", { method: "POST" });
+    } catch (e) {
+      console.error("Error running cycle", e);
+    }
+  });
+
+  window.addEventListener("load", () => {
+    initWebSocket();
+    fetch("/api/status").then(r => r.json()).then(updateDashboard).catch(() => {});
+    setInterval(() => fetch("/api/status").then(r => r.json()).then(updateDashboard).catch(() => {}), 30000);
+  });
+</script>
+</body>
+</html>
