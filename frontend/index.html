@@ -958,6 +958,35 @@
       transform: translateY(-2px);
     }
 
+    .twitter-harvest-btn {
+      grid-column: span 2;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      border: 2px solid #10b981;
+      color: white;
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .twitter-harvest-btn:hover {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      border-color: #047857;
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+    }
+
+    .twitter-harvest-btn:active {
+      transform: translateY(-1px);
+    }
+
+    .twitter-harvest-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .agent-status-panel {
       background: rgba(13, 21, 38, 0.5);
       border: 1px solid var(--border-light);
@@ -1519,6 +1548,7 @@
             <div>
               <div class="card-title" style="margin-bottom: 0.75rem;">Quick Actions</div>
               <div class="quick-buttons-grid">
+                <button class="quick-btn twitter-harvest-btn" onclick="gatherTwitterAndSave()" title="Gather tweets from Twitter and save tokens to Bonzo vault">🐦 GATHER & SAVE</button>
                 <button class="quick-btn" onclick="sendQuick('What is the current threat level?')">Threat Level?</button>
                 <button class="quick-btn" onclick="sendQuick('Check vault status')">Vault Status</button>
                 <button class="quick-btn" onclick="sendQuick('Harvest rewards')">Harvest Rewards</button>
@@ -2049,6 +2079,70 @@
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  }
+
+  /**
+   * Gather Twitter scraps and save tokens to Bonzo vault
+   */
+  async function gatherTwitterAndSave() {
+    const btn = document.querySelector('.twitter-harvest-btn');
+    if (!btn) {
+      console.error("Button not found");
+      return;
+    }
+    
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ Gathering...";
+    
+    try {
+      const resp = await fetch("/api/twitter/gather-and-save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        btn.textContent = "✓ Saved!";
+        
+        // Add success message to chat
+        addChatMessage(
+          `✓ Successfully gathered ${data.tweetsGathered} tweets and saved to Bonzo!\n` +
+          `📊 Vault TVL: $${data.vaultAfter.tvl.toFixed(2)}\n` +
+          `🔗 TX: ${data.vaultOperation.txHash.slice(0, 10)}...`,
+          "assistant"
+        );
+        
+        // Show top tweets in chat
+        if (data.tweets && data.tweets.length > 0) {
+          addChatMessage(
+            `Top Tweet: "${data.tweets[0].text.slice(0, 100)}..." (Relevance: ${(data.tweets[0].relevanceScore * 100).toFixed(0)}%)`,
+            "assistant"
+          );
+        }
+        
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }, 3000);
+      } else {
+        const errData = await resp.json();
+        btn.textContent = "✗ Error";
+        addChatMessage("Error: " + (errData.error || "Failed to gather and save"), "assistant");
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }, 2000);
+      }
+    } catch (e) {
+      console.error("Twitter/Bonzo error:", e);
+      btn.textContent = "✗ Error";
+      addChatMessage("Connection error: " + e.message, "assistant");
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 2000);
     }
   }
 
