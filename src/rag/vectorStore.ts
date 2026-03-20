@@ -5,14 +5,14 @@
  */
 
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { SimpleMemoryVectorStore } from "./memoryVectorStore.js";
 import { Document } from "@langchain/core/documents";
 import { IngestedTweet } from "../types/index.js";
 import * as dotenv from "dotenv";
 
 dotenv.config();
 
-let vectorStore: MemoryVectorStore | null = null;
+let vectorStore: SimpleMemoryVectorStore | null = null;
 let embeddings: GoogleGenerativeAIEmbeddings | null = null;
 
 /**
@@ -57,19 +57,19 @@ function tweetsToDocuments(tweets: IngestedTweet[]): Document[] {
 /**
  * Build or rebuild the vector store with new tweets
  */
-export async function buildVectorStore(tweets: IngestedTweet[]): Promise<MemoryVectorStore> {
+export async function buildVectorStore(tweets: IngestedTweet[]): Promise<SimpleMemoryVectorStore> {
   try {
     const embeddingsModel = getEmbeddings();
     const documents = tweetsToDocuments(tweets);
 
     if (documents.length === 0) {
       console.warn("⚠  No tweets to add to vector store");
-      vectorStore = new MemoryVectorStore(embeddingsModel);
+      vectorStore = new SimpleMemoryVectorStore(embeddingsModel);
       return vectorStore;
     }
 
     // Create new vector store from documents
-    vectorStore = await MemoryVectorStore.fromDocuments(documents, embeddingsModel);
+    vectorStore = await SimpleMemoryVectorStore.fromDocuments(documents, embeddingsModel);
 
     console.log(`✓ Vector store built with ${tweets.length} tweets`);
     return vectorStore;
@@ -82,11 +82,11 @@ export async function buildVectorStore(tweets: IngestedTweet[]): Promise<MemoryV
 /**
  * Get the current vector store (or create empty one)
  */
-export async function getVectorStore(): Promise<MemoryVectorStore> {
+export async function getVectorStore(): Promise<SimpleMemoryVectorStore> {
   if (!vectorStore) {
     // Create empty vector store
     const embeddingsModel = getEmbeddings();
-    vectorStore = new MemoryVectorStore(embeddingsModel);
+    vectorStore = new SimpleMemoryVectorStore(embeddingsModel);
   }
   return vectorStore;
 }
@@ -104,7 +104,7 @@ export async function retrieveRelevantSignals(
     // Search with similarity score
     const results = await store.similaritySearchWithScore(query, k);
 
-    return results.map(([doc, score]) => ({
+    return results.map(([doc, score]: [Document, number]) => ({
       content: doc.pageContent,
       score,
       metadata: doc.metadata,

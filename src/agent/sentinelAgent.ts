@@ -35,7 +35,7 @@ import {
  */
 export function createSentinelAgent() {
   const model = new ChatGoogleGenerativeAI({
-    modelName: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
     apiKey: process.env.GOOGLE_API_KEY,
     temperature: 0.3, // Low temperature for consistent decisions
     maxOutputTokens: 1024,
@@ -95,7 +95,7 @@ IMPORTANT RULES:
 Your decisions affect real capital. Be cautious and follow the decision matrix precisely.`;
 
   const agent = createReactAgent({
-    llmWithTools: model.bindTools(tools),
+    llm: model,
     tools,
     messageModifier: systemPrompt,
   });
