@@ -19,8 +19,6 @@ const WalletContext = createContext<WalletState>({
   disconnect: () => {},
 });
 
-const OWNER_ID = process.env.NEXT_PUBLIC_OWNER_WALLET_ID ?? "";
-
 // Global setter so the modal can update context
 let _setAccount: ((id: string) => void) | null = null;
 
@@ -45,7 +43,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const confirmConnect = useCallback(() => {
     const id = inputValue.trim();
-    // Validate Hedera account ID format: 0.0.XXXXX
     if (!/^0\.0\.\d+$/.test(id)) {
       setInputError("Invalid format. Use 0.0.XXXXXX");
       return;
@@ -63,8 +60,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem("sentinel-wallet");
   }, []);
 
-  const isOwner = connected && !!accountId &&
-    OWNER_ID !== "" && accountId === OWNER_ID;
+  const ownerIds = (process.env.NEXT_PUBLIC_OWNER_WALLET_ID || '').split(',').map(id => id.trim());
+  const isOwner = connected && !!accountId && ownerIds.includes(accountId);
 
   return (
     <WalletContext.Provider value={{
@@ -72,7 +69,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }}>
       {children}
 
-      {/* Account ID Modal */}
       {showModal && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 9999,
@@ -86,7 +82,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             boxShadow: "0 20px 60px rgba(99,102,241,0.2)",
             border: "1px solid #e4e9f5",
           }}>
-            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
               <div style={{
                 width: 40, height: 40, borderRadius: 10,
@@ -115,7 +110,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               >✕</button>
             </div>
 
-            {/* Input */}
             <div style={{ marginBottom: "1rem" }}>
               <label style={{
                 fontSize: "0.78rem", fontWeight: 600,
@@ -145,7 +139,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               )}
             </div>
 
-            {/* Info box */}
             <div style={{
               background: "#f8faff", borderRadius: 10,
               border: "1px solid #e0e7ff", padding: "0.75rem",
@@ -156,7 +149,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               </div>
             </div>
 
-            {/* Buttons */}
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button
                 onClick={() => setShowModal(false)}
