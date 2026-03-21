@@ -56,41 +56,47 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // HashConnect (HashPack browser extension) flow
   const connectWithHashPack = useCallback(async () => {
-    setHcChecking(true);
-    setInputError("");
+  setHcChecking(true);
+  setInputError("");
 
-    try {
-      // Initialise HashConnect once per session
-      if (!hcRef.current) {
-        hcRef.current = new HashConnect();
-        await hcRef.current.init(APP_METADATA, "testnet");
-      }
+  try {
+    const { HashConnect } = await import("@hashgraph/hashconnect");
 
-      const hc = hcRef.current;
-
-      // Listen for the pairing result (fires once)
-      hc.pairingEvent.once((pairingData) => {
-        const id = pairingData?.accountIds?.[0];
-        if (id) {
-          setAccountId(id);
-          setConnected(true);
-          sessionStorage.setItem("sentinel-wallet", id);
-          setShowModal(false);
-        } else {
-          setInputError("No account returned. Try manual input below.");
-        }
-        setHcChecking(false);
-      });
-
-      // Initiate connection with HashPack
-      await hc.connect();
-
-    } catch (err: any) {
-      console.error("HashConnect error:", err);
-      setInputError("HashPack connection failed — use manual input below.");
-      setHcChecking(false);
+    if (!hcRef.current) {
+      hcRef.current = new HashConnect();
     }
-  }, []);
+
+    const hc = hcRef.current as any;
+    await hc.init(APP_METADATA, "testnet", false);
+
+    // Listen for pairing with a 15s timeout
+    const timeout = setTimeout(() => {
+      setHcChecking(false);
+      setInputError("HashPack didn't respond — enter your account ID manually below.");
+    }, 15000);
+
+    hc.pairingEvent.once((pairingData: any) => {
+      clearTimeout(timeout);
+      const id = pairingData?.accountIds?.[0];
+      if (id) {
+        setAccountId(id);
+        setConnected(true);
+        sessionStorage.setItem("sentinel-wallet", id);
+        setShowModal(false);
+      } else {
+        setInputError("No account returned. Enter your account ID manually below.");
+      }
+      setHcChecking(false);
+    });
+
+    hc.connectToLocalWallet();
+
+  } catch (err: any) {
+    console.error("HashConnect error:", err);
+    setInputError("HashPack connection failed — enter your account ID manually below.");
+    setHcChecking(false);
+  }
+}, []);
 
   // Manual account ID input
   const confirmConnect = useCallback(() => {

@@ -21,12 +21,18 @@ export default function PositionCard() {
   const [amount, setAmount] = useState("");
   const [txLoading, setTxLoading] = useState(false);
   const [txResult, setTxResult] = useState<{ ok: boolean; message: string; txHash?: string } | null>(null);
-  const { connected } = useWallet();
+  const { connected, accountId } = useWallet();
 
   const loadPosition = async () => {
     try {
-      const r = await fetch("/api/positions").then(d => d.json());
+      // Pass connected wallet so API returns THAT wallet's position
+      const url = accountId
+        ? `/api/positions?accountId=${encodeURIComponent(accountId)}`
+        : "/api/positions";
+
+      const r = await fetch(url).then(d => d.json());
       setPos(r.position ?? null);
+
       const raw = r.price?.value ?? 0;
       if (raw > 0) {
         setHbarPrice(raw);
@@ -41,11 +47,13 @@ export default function PositionCard() {
     }
   };
 
+  // Reload whenever connected wallet changes
   useEffect(() => {
+    setLoading(true);
     loadPosition();
     const t = setInterval(loadPosition, 30000);
     return () => clearInterval(t);
-  }, []);
+  }, [accountId]);
 
   const handleAction = async (action: "deposit" | "withdraw") => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -55,7 +63,11 @@ export default function PositionCard() {
       const res = await fetch("/api/positions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, amount: parseFloat(amount) }),
+        body: JSON.stringify({
+          action,
+          amount: parseFloat(amount),
+          accountId, // pass connected wallet to API
+        }),
       }).then(r => r.json());
 
       setTxResult({
@@ -65,8 +77,17 @@ export default function PositionCard() {
       });
 
       if (res.ok) {
+        // Optimistically update the displayed position immediately
+        if (pos) {
+          const current = parseFloat(pos.deposited);
+          const delta = parseFloat(amount);
+          const updated = action === "deposit"
+            ? (current + delta).toFixed(4)
+            : Math.max(0, current - delta).toFixed(4);
+          setPos({ ...pos, deposited: updated });
+        }
         setAmount("");
-        setTimeout(() => loadPosition(), 2000);
+        setTimeout(() => loadPosition(), 3000); // refresh from chain after 3s
         setTimeout(() => setTxResult(null), 6000);
       }
     } catch (e) {
@@ -110,6 +131,16 @@ export default function PositionCard() {
         </span>
       </div>
 
+      {/* Connected wallet indicator */}
+      {connected && accountId && (
+        <div style={{
+          fontSize: "0.7rem", color: "var(--text-muted)",
+          marginBottom: "0.75rem", fontFamily: "JetBrains Mono, monospace",
+        }}>
+          Showing position for <span style={{ color: "#7c3aed", fontWeight: 600 }}>{accountId}</span>
+        </div>
+      )}
+
       {/* Tabs — only show deposit/withdraw if connected */}
       <div style={{ display: "flex", gap: "0.25rem", marginBottom: "1rem" }}>
         {tabs.map(t => (
@@ -119,10 +150,8 @@ export default function PositionCard() {
               onClick={() => { setTab(t.id); setTxResult(null); setAmount(""); }}
               style={{
                 padding: "0.3rem 0.75rem",
-                borderRadius: 6,
-                border: "none",
-                fontSize: "0.75rem",
-                fontWeight: 600,
+                borderRadius: 6, border: "none",
+                fontSize: "0.75rem", fontWeight: 600,
                 cursor: "pointer",
                 background: tab === t.id ? "var(--accent)" : "var(--bg)",
                 color: tab === t.id ? "white" : "var(--text-secondary)",
@@ -163,7 +192,9 @@ export default function PositionCard() {
             ))}
           </div>
         ) : (
-          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>Failed to load position.</p>
+          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+            {connected ? "No position found. Deposit HBAR to get started." : "Connect your wallet to view your position."}
+          </p>
         )
       )}
 
@@ -171,7 +202,7 @@ export default function PositionCard() {
       {tab === "deposit" && connected && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
           <div style={{ background: "#f5f3ff", borderRadius: 8, padding: "0.75rem", fontSize: "0.75rem", color: "#5b21b6" }}>
-            Current position: <strong>{pos?.deposited ?? "—"} HBAR</strong> · APY: <strong>{pos?.apy ?? "—"}</strong>
+            Current position: <strong>{pos?.deposited ?? "0.0000"} HBAR</strong> · APY: <strong>{pos?.apy ?? "94.15%"}</strong>
           </div>
 
           <div>
@@ -184,26 +215,20 @@ export default function PositionCard() {
                 placeholder="0.00"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
-                min="0"
-                step="0.1"
+                min="0" step="0.1"
                 style={{
                   flex: 1, padding: "0.6rem 0.75rem",
                   borderRadius: 8, border: "1.5px solid var(--border)",
                   fontSize: "0.9rem", fontFamily: "JetBrains Mono, monospace",
-                  outline: "none", color: "var(--text-primary)",
-                  background: "white",
+                  outline: "none", color: "var(--text-primary)", background: "white",
                 }}
               />
-              <button
-                onClick={() => setAmount("1")}
-                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}
-              >
+              <button onClick={() => setAmount("1")}
+                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 1 HBAR
               </button>
-              <button
-                onClick={() => setAmount("5")}
-                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}
-              >
+              <button onClick={() => setAmount("5")}
+                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 5 HBAR
               </button>
             </div>
@@ -253,7 +278,7 @@ export default function PositionCard() {
       {tab === "withdraw" && connected && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
           <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "0.75rem", fontSize: "0.75rem", color: "#065f46" }}>
-            Available to withdraw: <strong>{pos?.deposited ?? "—"} HBAR</strong>
+            Available to withdraw: <strong>{pos?.deposited ?? "0.0000"} HBAR</strong>
           </div>
 
           <div>
@@ -266,20 +291,16 @@ export default function PositionCard() {
                 placeholder="0.00"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
-                min="0"
-                step="0.1"
+                min="0" step="0.1"
                 style={{
                   flex: 1, padding: "0.6rem 0.75rem",
                   borderRadius: 8, border: "1.5px solid var(--border)",
                   fontSize: "0.9rem", fontFamily: "JetBrains Mono, monospace",
-                  outline: "none", color: "var(--text-primary)",
-                  background: "white",
+                  outline: "none", color: "var(--text-primary)", background: "white",
                 }}
               />
-              <button
-                onClick={() => setAmount(pos?.deposited ?? "0")}
-                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}
-              >
+              <button onClick={() => setAmount(pos?.deposited ?? "0")}
+                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 Max
               </button>
             </div>
@@ -294,10 +315,7 @@ export default function PositionCard() {
             onClick={() => handleAction("withdraw")}
             disabled={txLoading || !amount || parseFloat(amount) <= 0}
             className="btn"
-            style={{
-              width: "100%", justifyContent: "center", padding: "0.65rem",
-              background: "#ef4444", color: "white", border: "none",
-            }}
+            style={{ width: "100%", justifyContent: "center", padding: "0.65rem", background: "#ef4444", color: "white", border: "none" }}
           >
             {txLoading ? (
               <>
