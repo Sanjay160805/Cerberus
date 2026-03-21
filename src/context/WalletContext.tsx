@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 
 interface WalletState {
   connected: boolean;
@@ -26,44 +26,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
 
+  // Restore session on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem("sentinel-wallet");
+    if (saved) {
+      setAccountId(saved);
+      setConnected(true);
+    }
+  }, []);
+
   const connect = useCallback(async () => {
     setConnecting(true);
     try {
-      // Dynamically import HashConnect to avoid SSR issues
-      const { HashConnect } = await import("@hashgraph/hashconnect");
+      // Check if HashPack extension is installed
+      const win = window as any;
 
-      const hashconnect = new HashConnect();
+      if (!win.hashpack) {
+        // HashPack not installed — open install page
+        window.open("https://www.hashpack.app/download", "_blank");
+        setConnecting(false);
+        return;
+      }
 
-      const appMetadata = {
-        name: "Sentinel",
-        description: "Intelligent Keeper Agent on Hedera",
-        icon: "https://sentinel-hedera.vercel.app/favicon.ico",
-      };
+      // Request account from HashPack directly
+      const result = await win.hashpack.requestAccount();
 
-      const initData = await hashconnect.init(appMetadata, "testnet", true);
-
-      hashconnect.foundExtensionEvent.once((walletMetadata) => {
-        hashconnect.connectToLocalWallet();
-      });
-
-      hashconnect.pairingEvent.once((pairingData) => {
-        const id = pairingData.accountIds?.[0] ?? null;
-        setAccountId(id);
+      if (result?.accountId) {
+        setAccountId(result.accountId);
         setConnected(true);
-        // Persist to sessionStorage so refresh keeps you connected
-        if (id) sessionStorage.setItem("sentinel-wallet", id);
-      });
-
-      // If no extension found after 3s, show install prompt
-      setTimeout(() => {
-        if (!connected) setConnecting(false);
-      }, 3000);
-
-    } catch (err) {
-      console.error("HashConnect error:", err);
+        sessionStorage.setItem("sentinel-wallet", result.accountId);
+      }
+    } catch (err: any) {
+      // User rejected or error
+      console.warn("HashPack connection failed:", err?.message ?? err);
+    } finally {
       setConnecting(false);
     }
-  }, [connected]);
+  }, []);
 
   const disconnect = useCallback(() => {
     setConnected(false);
@@ -71,10 +70,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem("sentinel-wallet");
   }, []);
 
-  const isOwner = connected && !!accountId && accountId === OWNER_ID;
+  const isOwner = connected && !!accountId &&
+    OWNER_ID !== "" && accountId === OWNER_ID;
 
   return (
-    <WalletContext.Provider value={{ connected, accountId, isOwner, connecting, connect, disconnect }}>
+    <WalletContext.Provider value={{
+      connected, accountId, isOwner, connecting, connect, disconnect,
+    }}>
       {children}
     </WalletContext.Provider>
   );
