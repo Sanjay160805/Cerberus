@@ -1,14 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getRecentTweets } from "@/db/tweets";
+import { getLocalDbPath } from '@/db/githubFallback';
+import Database from 'better-sqlite3';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const tweets = getRecentTweets(limit);
-    const total = tweets.length;
-    return NextResponse.json({ ok: true, tweets, total, count: tweets.length });
-  } catch (error) {
-    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
+    const dbPath = process.env.NODE_ENV === 'production'
+      ? await getLocalDbPath()
+      : 'scraper/crypto_tweets.db';
+
+    const db = new Database(dbPath, { readonly: true });
+    const tweets = db.prepare(
+      'SELECT * FROM tweets ORDER BY created_at DESC LIMIT 100'
+    ).all();
+    db.close();
+
+    return Response.json({ tweets });
+  } catch (e) {
+    return Response.json({ tweets: [], error: String(e) });
   }
 }

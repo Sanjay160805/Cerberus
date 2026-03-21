@@ -1,0 +1,77 @@
+name: Sentinel Scraper
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour
+  workflow_dispatch:        # manual trigger from GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout data branch into ./data-branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data-branch
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy existing DB from data branch
+        run: |
+          mkdir -p scraper
+          if [ -f data-branch/tweets.db ]; then
+            cp data-branch/tweets.db scraper/tweets.db
+            echo "Restored existing tweets.db ($(wc -c < scraper/tweets.db) bytes)"
+          else
+            echo "No existing DB found — will create fresh"
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          pip install selenium webdriver-manager requests
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run scraper
+        env:
+          SCRAPER_HEADLESS: 'true'
+          DB_PATH: scraper/tweets.db
+        run: |
+          python scraper/scraper.py
+        continue-on-error: true   # don't fail the whole job if Nitter is down
+
+      - name: Commit DB to data branch
+        run: |
+          cd data-branch
+          cp ../scraper/tweets.db tweets.db
+          git config user.name  "sentinel-bot"
+          git config user.email "sentinel-bot@users.noreply.github.com"
+          git add tweets.db
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            TWEET_COUNT=$(python3 -c "
+          import sqlite3, sys
+          try:
+              c = sqlite3.connect('../scraper/tweets.db')
+              print(c.execute('SELECT COUNT(*) FROM tweets').fetchone()[0])
+          except: print('?')
+          ")
+            git commit -m "chore: scrape run $(date -u '+%Y-%m-%dT%H:%MZ') — ${TWEET_COUNT} tweets"
+            git push
+          fi

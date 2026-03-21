@@ -13,6 +13,10 @@ from selenium.webdriver.chrome.service import Service
 from datetime import datetime
 import sqlite3
 import re
+import os
+
+DB_PATH  = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crypto_tweets.db"))
+HEADLESS = os.environ.get("SCRAPER_HEADLESS", "false").lower() == "true"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -372,9 +376,7 @@ def main():
             print("=" * 80)
             print(f"💾 Saving {len(all_tweets)} tweets to database...")
             
-            import os
-            db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'crypto_tweets.db')
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
             
             cursor.execute('''
