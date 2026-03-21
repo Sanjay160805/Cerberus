@@ -40,32 +40,34 @@ export async function POST(req: NextRequest) {
 
     if (action === "deposit") {
       const { depositHBAR } = await import("@/bonzo/wethGateway");
-      const txHash = await depositHBAR(BONZO_LENDING_POOL, amountBigInt);
-      return NextResponse.json({
-        ok: true,
-        txHash,
-        action: "deposit",
-        amount,
-        accountId,
-        message: txHash
-          ? `Deposited ${amount} HBAR into Bonzo`
-          : "Deposit attempted — testnet HTS limitation",
-      });
+      try {
+        const txHash = await depositHBAR(BONZO_LENDING_POOL, amountBigInt, accountId);
+        return NextResponse.json({
+          ok: true, txHash, action: "deposit", amount, accountId,
+          message: `Deposited ${amount} HBAR into Bonzo`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          ok: false,
+          error: err?.message ?? "Deposit failed",
+        }, { status: 400 });
+      }
     }
 
     if (action === "withdraw") {
       const { withdrawHBAR } = await import("@/bonzo/wethGateway");
-      const txHash = await withdrawHBAR(BONZO_LENDING_POOL, amountBigInt);
-      return NextResponse.json({
-        ok: true,
-        txHash,
-        action: "withdraw",
-        amount,
-        accountId,
-        message: txHash
-          ? `Withdrew ${amount} HBAR from Bonzo`
-          : "Withdraw attempted — testnet HTS limitation",
-      });
+      try {
+        const txHash = await withdrawHBAR(BONZO_LENDING_POOL, amountBigInt, accountId);
+        return NextResponse.json({
+          ok: true, txHash, action: "withdraw", amount, accountId,
+          message: `Withdrew ${amount} HBAR from Bonzo`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          ok: false,
+          error: err?.message ?? "Withdraw failed",
+        }, { status: 400 });
+      }
     }
 
     return NextResponse.json({ ok: false, error: "Invalid action" }, { status: 400 });
