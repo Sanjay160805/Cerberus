@@ -41,7 +41,7 @@ export async function getVaultPosition(accountId?: string): Promise<VaultPositio
 
     // If no on-chain EVM position found, check if this is the protocol owner account
     const ownerAccountId = process.env.HEDERA_ACCOUNT_ID ?? "";
-    const isOwnerAccount = !accountId || accountId === ownerAccountId;
+    const isOwnerAccount = accountId === ownerAccountId;
 
     if (isOwnerAccount) {
       // Owner's known HTS position confirmed via Bonzo UI

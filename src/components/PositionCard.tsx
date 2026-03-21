@@ -24,12 +24,14 @@ export default function PositionCard() {
   const { connected, accountId } = useWallet();
 
   const loadPosition = async () => {
+    // Don't fetch if no wallet connected
+    if (!connected || !accountId) {
+      setPos(null);
+      setLoading(false);
+      return;
+    }
     try {
-      // Pass connected wallet so API returns THAT wallet's position
-      const url = accountId
-        ? `/api/positions?accountId=${encodeURIComponent(accountId)}`
-        : "/api/positions";
-
+      const url = `/api/positions?accountId=${encodeURIComponent(accountId)}`;
       const r = await fetch(url).then(d => d.json());
       setPos(r.position ?? null);
 

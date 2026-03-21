@@ -15,8 +15,6 @@ export default function Dashboard() {
   const [cycleRunning, setCycleRunning] = useState(false);
   const [lastCycle, setLastCycle] = useState<string | null>(null);
   const [hbarPrice, setHbarPrice] = useState<number>(0);
-  const [vaultDeposited, setVaultDeposited] = useState<string>("—");
-  const [vaultApy, setVaultApy] = useState<string>("—");
   const [lastScraped, setLastScraped] = useState<string | null>(null);
   const [nextUpdate, setNextUpdate] = useState<number>(60);
   const { connected, accountId, connect, disconnect } = useWallet();
@@ -51,10 +49,6 @@ export default function Dashboard() {
           p = cg?.["hedera-hashgraph"]?.usd ?? 0;
         }
         setHbarPrice(p);
-        if (r.position) {
-          setVaultDeposited(r.position.deposited);
-          setVaultApy(r.position.apy);
-        }
       } catch {}
     };
     load();
@@ -101,10 +95,6 @@ export default function Dashboard() {
       setCycleRunning(false);
     }
   }, []);
-
-  const usdValue = hbarPrice > 0 && vaultDeposited !== "—"
-    ? `≈$${(parseFloat(vaultDeposited) * hbarPrice).toFixed(2)}`
-    : "—";
 
   return (
     <div className="app-shell">
@@ -242,16 +232,9 @@ export default function Dashboard() {
               <div className="stat-delta up">Live · CoinGecko</div>
             </div>
             <div className="stat-box">
-              <div className="stat-label">Vault Deposited</div>
-              <div className="stat-value" style={{ fontSize: "1.2rem" }}>
-                {vaultDeposited !== "—" ? parseFloat(vaultDeposited).toFixed(2) : "—"}
-              </div>
-              <div className="stat-delta neutral">HBAR · {usdValue}</div>
-            </div>
-            <div className="stat-box">
               <div className="stat-label">APY</div>
               <div className="stat-value" style={{ fontSize: "1.2rem", color: "#10b981" }}>
-                {vaultApy !== "—" ? vaultApy : "—"}
+                94.15%
               </div>
               <div className="stat-delta neutral">Bonzo Finance</div>
             </div>
