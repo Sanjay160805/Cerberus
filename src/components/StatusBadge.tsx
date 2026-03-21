@@ -27,18 +27,18 @@ export default function StatusBadge() {
   }, []);
 
   const agent = status?.agent;
+  const isRunning = agent?.running ?? false;
 
   const rows = agent ? [
-    { label: "Network",      value: "Hedera Testnet",                                                          color: "#6366f1" },
-    { label: "Tweets",       value: (agent.tweetCount ?? 0).toLocaleString(),                                  color: "#0ea5e9" },
-    { label: "Last Action",  value: agent.lastDecision?.action ?? "—",                                         color: "#8b5cf6" },
-    { label: "Last Cycle",   value: agent.lastDecision?.timestamp
-        ? new Date(agent.lastDecision.timestamp.replace(" ", "T")).toLocaleTimeString()
-        : "Never",                                                                                              color: "var(--text-secondary)" },
-    { label: "Interval",     value: `${((agent.interval ?? 3600000) / 60000).toFixed(0)} min`,                 color: "#f59e0b" },
+    { label: "Network",     value: "Hedera Testnet",                                                     color: "#6366f1" },
+    { label: "Tweets",      value: (agent.tweetCount ?? 0).toLocaleString(),                             color: "#0ea5e9" },
+    { label: "Last Action", value: agent.lastDecision?.action ?? "—",                                    color: "#8b5cf6" },
+    { label: "Last Cycle",  value: agent.lastDecision?.timestamp
+        ? new Date(agent.lastDecision.timestamp.replace(" ", "T")).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+        : "Never",                                                                                        color: "var(--text-secondary)" },
+    { label: "Interval",    value: `${((agent.interval ?? 3600000) / 60000).toFixed(0)} min`,            color: "#f59e0b" },
+    { label: "HCS Topic",   value: agent.lastDecision?.hcsTopic ?? "0.0.8008987",                       color: "#10b981" },
   ] : [];
-
-  const isRunning = agent?.running ?? false;
 
   return (
     <div className="card">
@@ -65,15 +65,6 @@ export default function StatusBadge() {
             <span className="mono" style={{ fontSize: "0.78rem", fontWeight: 600, color: row.color }}>{row.value}</span>
           </div>
         ))}
-      </div>
-
-      <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f8faff", borderRadius: 10, border: "1px solid #e0e7ff" }}>
-        <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginBottom: "0.4rem", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Stack</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-          {["Next.js 15", "LangGraph", "Gemini 2.0", "Hedera SDK", "Bonzo Finance", "Supra Oracle"].map(t => (
-            <span key={t} className="badge" style={{ background: "#ede9fe", color: "#6d28d9", fontSize: "0.65rem" }}>{t}</span>
-          ))}
-        </div>
       </div>
     </div>
   );

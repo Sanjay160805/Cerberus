@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 interface Tweet {
   id: number;
   username: string;
-  content: string;
-  timestamp: string;
+  text: string;
+  time: string;
+  scraped_at: string;
   likes?: number;
   retweets?: number;
 }
@@ -22,15 +23,12 @@ export default function TweetFeed() {
     return () => clearInterval(t);
   }, []);
 
-  const formatDate = (timestamp: string) => {
-    if (!timestamp) return "—";
-    // Handle both "2026-03-14 15:19:00" and "2026-03-14T15:19:00" formats
-    const d = new Date(timestamp.replace(" ", "T"));
-    if (isNaN(d.getTime())) {
-      // Last resort: just slice the date portion directly from string
-      return timestamp.slice(0, 10);
-    }
-    return d.toLocaleDateString();
+  const formatDateTime = (ts: string) => {
+    if (!ts) return "—";
+    const d = new Date(ts.replace(" ", "T"));
+    if (isNaN(d.getTime())) return ts.slice(0, 16);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
@@ -42,7 +40,7 @@ export default function TweetFeed() {
         </svg>
         Recent Signals
         <span className="mono" style={{ marginLeft: "auto", fontSize: "0.72rem", color: "var(--text-secondary)" }}>
-          {total.toLocaleString()} total
+          {total > 0 ? total.toLocaleString() : tweets.length} total
         </span>
       </div>
 
@@ -56,11 +54,11 @@ export default function TweetFeed() {
                 @{t.username}
               </span>
               <span className="mono" style={{ fontSize: "0.68rem", color: "var(--text-secondary)" }}>
-                {formatDate(t.timestamp)}
+                {formatDateTime(t.scraped_at || t.time)}
               </span>
             </div>
             <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-              {t.content?.slice(0, 120)}{(t.content?.length ?? 0) > 120 ? "..." : ""}
+              {t.text?.slice(0, 120)}{(t.text?.length ?? 0) > 120 ? "..." : ""}
             </p>
             {(t.likes !== undefined || t.retweets !== undefined) && (
               <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.3rem" }}>
