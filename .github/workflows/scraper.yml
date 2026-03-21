@@ -75,3 +75,12 @@ jobs:
             git commit -m "chore: scrape run $(date -u '+%Y-%m-%dT%H:%MZ') — ${TWEET_COUNT} tweets"
             git push
           fi
+
+      - name: Trigger agent cycle on Vercel
+        run: |
+          curl -X POST https://sentinel-git-main-sanjay-christopher-rajs-projects.vercel.app/api/cycle \
+            -H "Content-Type: application/json" \
+            --max-time 120 \
+            --silent \
+            --show-error
+        continue-on-error: true   # don't fail the job if Vercel is slow
