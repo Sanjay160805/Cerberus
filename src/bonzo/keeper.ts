@@ -113,45 +113,50 @@ async function approveAToken(
 async function depositNative(amountHbar: number): Promise<string | null> {
   try {
     const client = getHederaClient();
-    const operatorEvm = `0x${AccountId.fromString(
-      process.env.HEDERA_ACCOUNT_ID!
-    ).toSolidityAddress()}`;
+    const accountId = AccountId.fromString(process.env.HEDERA_ACCOUNT_ID!);
+    const operatorEvm = `0x${accountId.toSolidityAddress()}`;
 
-    logger.info(
-      `Native deposit: ${amountHbar} HBAR to Bonzo via WETHGateway depositETH`
-    );
-
-    // Associate WHBAR token if not already associated
+    // Step 1: Associate WHBAR token if not already
     try {
       const associateTx = await new TokenAssociateTransaction()
-        .setAccountId(AccountId.fromString(process.env.HEDERA_ACCOUNT_ID!))
+        .setAccountId(accountId)
         .setTokenIds([TokenId.fromString("0.0.15058")])
+        .freezeWith(client)
         .execute(client);
       await associateTx.getReceipt(client);
       logger.info("WHBAR token associated successfully");
-    } catch (error) {
-      logger.warn("WHBAR token already associated or association failed", error);
+    } catch (e: any) {
+      if (e?.status?.toString() === "TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT") {
+        logger.info("WHBAR already associated, continuing");
+      } else {
+        logger.error("Token associate failed", e?.message ?? e);
+        return null;
+      }
     }
 
+    // Step 2: Deposit via WETHGateway
+    logger.info(`Depositing ${amountHbar} HBAR via WETHGateway depositETH`);
     const tx = await new ContractExecuteTransaction()
-      .setContractId(ContractId.fromString(BONZO_WETH_GATEWAY_ID))
-      .setGas(400_000)
+      .setContractId(ContractId.fromString("0.0.4999384"))
+      .setGas(500000)
       .setFunction(
         "depositETH",
         new ContractFunctionParameters()
-          .addAddress(BONZO_LENDING_POOL_EVM) // lendingPool
-          .addAddress(operatorEvm)            // onBehalfOf
-          .addUint16(0)                       // referralCode
+          .addAddress("0xf67DBe9bD1B331cA379c44b5562EAa1CE831EbC2")
+          .addAddress(operatorEvm)
+          .addUint16(0)
       )
       .setPayableAmount(new Hbar(amountHbar))
       .execute(client);
 
     const receipt = await tx.getReceipt(client);
-    const txId = tx.transactionId.toString();
-    logger.info(`Native deposit success — tx: ${txId} status: ${receipt.status}`);
-    return txId;
-  } catch (error) {
-    logger.error("Native deposit failed", error);
+    logger.info(`depositETH status: ${receipt.status}`);
+    return tx.transactionId.toString();
+  } catch (error: any) {
+    logger.error(
+      "Native deposit failed",
+      error?.message ?? JSON.stringify(error)
+    );
     return null;
   }
 }
