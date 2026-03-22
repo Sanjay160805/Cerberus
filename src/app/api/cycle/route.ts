@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { logDecisionToHCS } from "@/hedera/hcs";
 
 export const maxDuration = 60;
 
@@ -12,6 +13,12 @@ export async function POST() {
         { ok: false, message: "Cycle already running or failed" },
         { status: 409 }
       );
+    }
+
+    // Log decision to HCS IMMEDIATELY — must complete before execution
+    if (result.decision) {
+      await logDecisionToHCS(result.decision);
+      logger.info("✓ Decision logged to HCS");
     }
 
     // Fire-and-forget: execute the keeper action independently
