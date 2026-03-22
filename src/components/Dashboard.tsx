@@ -19,7 +19,6 @@ export default function Dashboard() {
   const [nextUpdate, setNextUpdate] = useState<number>(60);
   const { connected, accountId, connect, disconnect } = useWallet();
 
-  // Load status + tweet count
   useEffect(() => {
     const load = async () => {
       try {
@@ -36,7 +35,6 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  // Load live price + vault
   useEffect(() => {
     const load = async () => {
       try {
@@ -56,7 +54,6 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  // Tweet refresh countdown
   useEffect(() => {
     const load = async () => {
       try {
@@ -75,7 +72,6 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  // Countdown timer ticking every minute
   useEffect(() => {
     const t = setInterval(() => setNextUpdate(p => Math.max(0, p - 1)), 60000);
     return () => clearInterval(t);
@@ -98,7 +94,6 @@ export default function Dashboard() {
 
   return (
     <div className="app-shell">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">
@@ -149,9 +144,7 @@ export default function Dashboard() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
-            {lastScraped
-              ? `Updated ${lastScraped} · ${nextUpdate}m`
-              : "Checking updates..."}
+            {lastScraped ? `Updated ${lastScraped} · ${nextUpdate}m` : "Checking updates..."}
           </div>
         </div>
 
@@ -165,9 +158,7 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="main-content">
-        {/* Topbar */}
         <div className="topbar">
           <div>
             <div className="topbar-title">Dashboard</div>
@@ -181,28 +172,43 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="topbar-right">
-            <button
-              className={`btn ${agentRunning ? "btn-ghost" : "btn-primary"}`}
-              onClick={handleStartStop}
-            >
-              {agentRunning ? "Stop Agent" : "Start Agent"}
-            </button>
-            <button
-              className="btn btn-outline"
-              onClick={handleRunCycle}
-              disabled={cycleRunning}
-            >
-              {cycleRunning ? (
-                <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2"
-                    style={{ animation: "spin 1s linear infinite" }}>
-                    <path d="M21 12a9 9 0 11-6.219-8.56"/>
-                  </svg>
-                  Running...
-                </>
-              ) : "⚡ Run Cycle"}
-            </button>
+            {connected && (
+              <>
+                <button
+                  className={`btn ${agentRunning ? "btn-ghost" : "btn-primary"}`}
+                  onClick={handleStartStop}
+                >
+                  {agentRunning ? "Stop Agent" : "Start Agent"}
+                </button>
+                <button
+                  className="btn btn-outline"
+                  onClick={handleRunCycle}
+                  disabled={cycleRunning}
+                >
+                  {cycleRunning ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2"
+                        style={{ animation: "spin 1s linear infinite" }}>
+                        <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                      </svg>
+                      Running...
+                    </>
+                  ) : "⚡ Run Cycle"}
+                </button>
+              </>
+            )}
+            {!connected && (
+              <div style={{
+                fontSize: "0.75rem", color: "var(--text-muted)",
+                padding: "0.4rem 0.75rem",
+                background: "var(--bg)",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+              }}>
+                Connect wallet to run agent
+              </div>
+            )}
             <WalletConnect />
           </div>
         </div>
@@ -222,7 +228,6 @@ export default function Dashboard() {
         )}
 
         <div className="page-content">
-          {/* Live stat row */}
           <div className="stat-row">
             <div className="stat-box">
               <div className="stat-label">HBAR Price</div>
@@ -247,9 +252,15 @@ export default function Dashboard() {
                 {nextUpdate > 0 ? `Next update in ${nextUpdate}m` : "Updating soon..."}
               </div>
             </div>
+            <div className="stat-box">
+              <div className="stat-label">Network</div>
+              <div className="stat-value" style={{ fontSize: "1rem", color: "#7c3aed" }}>
+                Hedera
+              </div>
+              <div className="stat-delta neutral">Testnet · HCS Active</div>
+            </div>
           </div>
 
-          {/* Main grid */}
           <div className="dashboard-grid">
             <ThreatMeter />
             <PriceChart />

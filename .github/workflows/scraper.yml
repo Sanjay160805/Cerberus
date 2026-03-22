@@ -2,8 +2,8 @@ name: Sentinel Scraper
 
 on:
   schedule:
-    - cron: '0 * * * *'   # every hour
-  workflow_dispatch:        # manual trigger from GitHub UI
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -53,7 +53,7 @@ jobs:
           DB_PATH: scraper/tweets.db
         run: |
           python scraper/scraper.py
-        continue-on-error: true   # don't fail the whole job if Nitter is down
+        continue-on-error: true
 
       - name: Commit DB to data branch
         run: |
@@ -78,9 +78,9 @@ jobs:
 
       - name: Trigger agent cycle on Vercel
         run: |
-          curl -X POST https://sentinel-git-main-sanjay-christopher-rajs-projects.vercel.app/api/cycle \
+          curl -X POST https://sentinel-one-teal.vercel.app/api/cycle \
             -H "Content-Type: application/json" \
             --max-time 120 \
             --silent \
             --show-error
-        continue-on-error: true   # don't fail the job if Vercel is slow
+        continue-on-error: true

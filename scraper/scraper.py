@@ -393,6 +393,9 @@ def main():
                 )
             ''')
             
+            # Clear old tweets — keep only latest scrape
+            cursor.execute('DELETE FROM tweets')
+
             for tweet in all_tweets:
                 cursor.execute('''
                     INSERT INTO tweets (username, text, time, likes, retweets, replies, is_crypto, scraped_at)
