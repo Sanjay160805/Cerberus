@@ -5,11 +5,11 @@ import DecisionFeed from "./DecisionFeed";
 import TweetFeed from "./TweetFeed";
 import PositionCard from "./PositionCard";
 import PriceChart from "./PriceChart";
-import StatusBadge from "./StatusBadge";
 import WalletConnect from "./WalletConnect";
 import { useWallet } from "@/context/WalletContext";
 
 export default function Dashboard() {
+  const [darkMode, setDarkMode] = useState(false);
   const [agentRunning, setAgentRunning] = useState(false);
   const [tweetCount, setTweetCount] = useState(0);
   const [cycleRunning, setCycleRunning] = useState(false);
@@ -18,6 +18,14 @@ export default function Dashboard() {
   const [lastScraped, setLastScraped] = useState<string | null>(null);
   const [nextUpdate, setNextUpdate] = useState<number>(60);
   const { connected, accountId, connect, disconnect } = useWallet();
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     const load = async () => {
@@ -93,77 +101,13 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6l-8-4z"
-                fill="white" fillOpacity="0.95"/>
-            </svg>
-          </div>
-          <div className="sidebar-title">Sentinel</div>
-          <div className="sidebar-subtitle">Intelligent Keeper Agent</div>
-        </div>
-
-        <div className="sidebar-section">
-          <div className="sidebar-section-label">Main</div>
-          <div className="sidebar-item active">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-            </svg>
-            Dashboard
-          </div>
-        </div>
-
-        <div className="sidebar-section">
-          <div className="sidebar-section-label">Info</div>
-          <div className="sidebar-item" style={{ cursor: "default", opacity: 0.7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="2" y1="12" x2="22" y2="12"/>
-              <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/>
-            </svg>
-            Hedera Testnet
-          </div>
-          <div className="sidebar-item" style={{ cursor: "default", opacity: 0.7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="11" width="18" height="11" rx="2"/>
-              <path d="M7 11V7a5 5 0 0110 0v4"/>
-            </svg>
-            Bonzo Finance
-          </div>
-          <div className="sidebar-item" style={{ cursor: "default", opacity: 0.7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/>
-            </svg>
-            {tweetCount > 0 ? `${tweetCount.toLocaleString()} tweets` : "Loading tweets..."}
-          </div>
-          <div className="sidebar-item" style={{ cursor: "default", opacity: 0.7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            {lastScraped ? `Updated ${lastScraped} · ${nextUpdate}m` : "Checking updates..."}
-          </div>
-        </div>
-
-        <div className="sidebar-bottom">
-          <div className="agent-status-pill">
-            <span className={`pulse-dot ${agentRunning ? "running" : "stopped"}`} />
-            <span style={{ color: agentRunning ? "#065f46" : "#dc2626" }}>
-              {agentRunning ? "Agent Running" : "Agent Stopped"}
-            </span>
-          </div>
-        </div>
-      </aside>
-
-      <div className="main-content">
+    <div className="app-shell full-width">
+      <div className="main-content" style={{ marginLeft: 0, width: "100%" }}>
         <div className="topbar">
           <div>
-            <div className="topbar-title">Dashboard</div>
+            <div className="topbar-title">Sentinel Dashboard</div>
             <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-              Hedera · Bonzo Finance · LangGraph
+              Hedera Testnet · Bonzo Finance · Real-time AI Agent
               {lastScraped && (
                 <span style={{ marginLeft: "0.75rem", color: nextUpdate <= 5 ? "#10b981" : "var(--text-muted)" }}>
                   · Tweets updated {lastScraped} · Next in {nextUpdate}m
@@ -209,6 +153,21 @@ export default function Dashboard() {
                 Connect wallet to run agent
               </div>
             )}
+            <button 
+              className="dark-mode-toggle"
+              onClick={() => setDarkMode(!darkMode)}
+              title="Toggle dark mode"
+            >
+              {darkMode ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+              )}
+            </button>
             <WalletConnect />
           </div>
         </div>
@@ -261,14 +220,17 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="dashboard-grid">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem", marginBottom: "1rem" }}>
             <ThreatMeter />
             <PriceChart />
-            <PositionCard />
-            <DecisionFeed />
-            <TweetFeed />
-            <StatusBadge />
           </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem", marginBottom: "1rem" }}>
+            <TweetFeed />
+            <PositionCard />
+          </div>
+
+          <DecisionFeed expanded />
         </div>
       </div>
     </div>

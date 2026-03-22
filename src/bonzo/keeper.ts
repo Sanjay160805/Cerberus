@@ -219,6 +219,7 @@ export function determineKeeperAction(
   volatility: VolatilityResult,
   price: number
 ): KeeperAction {
+
   if (threat.level === "CRITICAL" || threat.score > 0.85)
     return {
       type: "PROTECT",

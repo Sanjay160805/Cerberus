@@ -1,16 +1,20 @@
 "use client";
 import { useEffect, useState } from "react";
+import DecisionDetailModal from "./DecisionDetailModal";
 import { useWallet } from "@/context/WalletContext";
 
 interface Decision {
   id: number;
   action: string;
   reason: string;
+  reasoning?: string;
   threatScore: number;
+  threat_score?: number;
   price: number;
   timestamp: string;
   sequence?: number;
   fromHCS?: boolean;
+  volatility?: number;
   walletId?: string;
 }
 
@@ -25,6 +29,7 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [source, setSource] = useState<string>("loading");
   const [loading, setLoading] = useState(true);
+  const [selectedDecision, setSelectedDecision] = useState<Decision | null>(null);
   const { accountId } = useWallet();
 
   useEffect(() => {
@@ -103,7 +108,14 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
             </p>
           </div>
         ) : decisions.map((d, i) => (
-          <div key={d.id ?? i} className="timeline-item">
+          <div 
+            key={d.id ?? i} 
+            className="timeline-item"
+            onClick={() => setSelectedDecision(d)}
+            style={{ cursor: "pointer", transition: "all 0.2s", padding: "0.5rem", borderRadius: "8px" }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface-hover)"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+          >
             <span
               className="timeline-dot"
               style={{
@@ -127,11 +139,12 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
               </span>
             </div>
             <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-              {d.reason}
+              {(d.reasoning || d.reason || "").slice(0, 120)}
+              {(d.reasoning || d.reason || "").length > 120 ? "..." : ""}
             </p>
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.2rem", alignItems: "center" }}>
               <span className="mono" style={{ fontSize: "0.66rem", color: "var(--text-muted)" }}>
-                Threat: {Math.round((d.threatScore ?? 0) * 100)}%
+                Threat: {Math.round((d.threatScore ?? d.threat_score ?? 0) * 100)}%
               </span>
               <span className="mono" style={{ fontSize: "0.66rem", color: "var(--text-muted)" }}>
                 ${(d.price ?? 0).toFixed(4)}
@@ -141,6 +154,12 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
                   ✓ on-chain
                 </span>
               )}
+              <span style={{
+                fontSize: "0.66rem", color: "var(--accent)",
+                marginLeft: "auto", fontWeight: 600,
+              }}>
+                View →
+              </span>
             </div>
           </div>
         ))}
@@ -169,6 +188,8 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
           </span>
         </div>
       )}
+
+      <DecisionDetailModal decision={selectedDecision} onClose={() => setSelectedDecision(null)} />
     </div>
   );
 }

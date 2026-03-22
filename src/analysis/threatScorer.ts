@@ -4,6 +4,24 @@ import { ThreatAnalysis } from "@/lib/types";
 import { logger } from "@/lib/logger";
 import { getRecentTweets } from "@/db/tweets";
 
+// Retry configuration for Gemini rate limiting
+const MAX_RETRIES = 1;
+const INITIAL_BACKOFF_MS = 1000;
+
+async function callGeminiWithRetry(prompt: string, retryCount = 0): Promise<any> {
+  try {
+    const response = await geminiModel.invoke(prompt);
+    return response;
+  } catch (error: any) {
+    // On free tier, 429 happens immediately - fail fast instead of retrying
+    if (error.status === 429) {
+      logger.warn("Gemini rate limited (free tier quota) — skipping to keyword fallback");
+      throw error;
+    }
+    throw error;
+  }
+}
+
 export async function scoreThreat(): Promise<ThreatAnalysis> {
   try {
     // Try RAG retrieval first
@@ -17,6 +35,7 @@ export async function scoreThreat(): Promise<ThreatAnalysis> {
         retrieveRegulatoryContext(),
         retrieveMacroContext(),
       ]);
+      logger.info(`RAG retrieval: geo=${geoContext.length}chars, reg=${regContext.length}chars, macro=${macroContext.length}chars`);
     } catch (ragError) {
       logger.warn("RAG retrieval failed, using direct tweets", ragError);
     }
@@ -53,7 +72,8 @@ Consider: Wars/invasions = high threat. Crypto bans/SEC enforcement = high threa
 Respond in this exact JSON format with no other text:
 {"score":0.15,"level":"LOW","signals":["signal1","signal2"],"sentiment":"BULLISH","summary":"one sentence summary"}`;
 
-    const response = await geminiModel.invoke(prompt);
+    logger.info("🧠 Calling Gemini with RAG context...");
+    const response = await callGeminiWithRetry(prompt);
     const text = typeof response.content === "string"
       ? response.content
       : JSON.stringify(response.content);
@@ -61,53 +81,78 @@ Respond in this exact JSON format with no other text:
     const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const result = JSON.parse(cleaned);
 
-    logger.info(`Gemini threat score: ${result.score} (${result.level}) — ${result.summary}`);
+    logger.info(`✅ Gemini threat score: ${result.score} (${result.level}) — ${result.summary}`);
+
+    const sentiment = (result.sentiment || "NEUTRAL") as "BULLISH" | "BEARISH" | "NEUTRAL";
+    const level = (result.level || "LOW") as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
     return {
       score: Math.max(0, Math.min(1, result.score || 0)),
-      level: result.level || "LOW",
+      level,
       signals: result.signals || [],
-      sentiment: result.sentiment || "NEUTRAL",
+      sentiment,
       summary: result.summary || "No significant threats detected",
     };
 
   } catch (error: any) {
     // Log concisely — Gemini rate limiting is expected, fallback handles it
     if (error.status === 429) {
-      logger.warn("Gemini rate limited (429) — using keyword analysis fallback");
+      logger.warn("Gemini permanently rate limited (429) after retries — using keyword analysis fallback");
     } else {
       logger.error("Threat scoring failed", error?.message || String(error));
     }
 
-    // Keyword fallback when Gemini fails
+    // Enhanced keyword fallback when Gemini fails
     try {
       const tweets = getRecentTweets(100);
       const text = tweets.map((t: any) => t.text?.toLowerCase() || "").join(" ");
 
-      const highThreat = ["war", "ban", "crash", "hack", "sec", "arrest", "sanctions", "collapse"].filter(k => text.includes(k));
-      const bullish = ["ath", "pump", "moon", "bullish", "adoption", "etf", "approved"].filter(k => text.includes(k));
+      // Threat keywords with weights
+      const criticalThreats = ["war", "invasion", "collapse", "liquidation", "hack", "exploit", "breach", "arrested", "ban"].filter(k => text.includes(k));
+      const highThreats = ["crash", "sec enforcement", "regulation", "sanctions", "failed", "dumping", "insolvent"].filter(k => text.includes(k));
+      const mediumThreats = ["decline", "concerns", "risk", "caution", "bearish", "downturn"].filter(k => text.includes(k));
+      const bullish = ["bull", "ath", "pump", "moon", "adoption", "etf", "approved", "optimistic", "rally", "partnership", "surge", "gains"].filter(k => text.includes(k));
+      const bearish = ["bear", "crash", "dump", "liquidation", "cascade", "unwind", "outflows"].filter(k => text.includes(k));
 
-      const score = Math.min(1, highThreat.length * 0.15);
-      const level = score > 0.6 ? "HIGH" : score > 0.3 ? "MEDIUM" : "LOW";
-      const sentiment = bullish.length > highThreat.length ? "BULLISH" : highThreat.length > 2 ? "BEARISH" : "NEUTRAL";
+      // Calculate weighted threat score
+      let score = 0;
+      score += criticalThreats.length * 0.25;
+      score += highThreats.length * 0.15;
+      score += mediumThreats.length * 0.08;
+      score = Math.min(1, score);
 
-      logger.info(`Keyword fallback: score=${score}, level=${level}, sentiment=${sentiment}`);
+      // Determine level
+      let level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "LOW";
+      if (score > 0.85) level = "CRITICAL";
+      else if (score > 0.6) level = "HIGH";
+      else if (score > 0.3) level = "MEDIUM";
 
-      return {
+      // Determine sentiment
+      const sentiment = bullish.length > bearish.length ? "BULLISH" : bearish.length > bullish.length ? "BEARISH" : "NEUTRAL";
+
+      const allSignals = [...criticalThreats, ...highThreats, ...mediumThreats];
+
+      logger.info(`⚠️  Fallback: score=${score.toFixed(2)}, level=${level}, sentiment=${sentiment}, signals=${allSignals.length}`);
+
+      const threatAnalysis: ThreatAnalysis = {
         score,
         level,
-        signals: highThreat,
+        signals: allSignals,
         sentiment,
-        summary: `Keyword analysis: ${highThreat.length} threat signals, ${bullish.length} bullish signals`,
+        summary: `Keyword analysis: ${allSignals.length} threat signals, ${bullish.length} bullish signals`,
       };
-    } catch {
-      return {
+      
+      return threatAnalysis;
+    } catch (fallbackError) {
+      logger.error("Keyword fallback error", fallbackError);
+      const defaultThreat: ThreatAnalysis = {
         score: 0,
         level: "LOW",
         signals: [],
         sentiment: "NEUTRAL",
         summary: "Threat scoring failed — defaulting to LOW",
       };
+      return defaultThreat;
     }
   }
 }

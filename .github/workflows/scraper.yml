@@ -11,76 +11,102 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout main branch
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout data branch into ./data-branch
-        uses: actions/checkout@v4
-        with:
-          ref: data
-          path: data-branch
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Copy existing DB from data branch
+      - name: List repository structure (DEBUG)
         run: |
-          mkdir -p scraper
-          if [ -f data-branch/tweets.db ]; then
-            cp data-branch/tweets.db scraper/tweets.db
-            echo "Restored existing tweets.db ($(wc -c < scraper/tweets.db) bytes)"
-          else
-            echo "No existing DB found — will create fresh"
-          fi
+          echo "Current directory: $(pwd)"
+          ls -la
+          echo "---"
+          find . -name "scraper.py" -o -name "tweets.db" 2>/dev/null || echo "No scraper.py or tweets.db found"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install Python dependencies
         run: |
+          pip install --upgrade pip
           pip install selenium webdriver-manager requests
+          echo "✓ Dependencies installed"
 
-      - name: Install Chrome
+      - name: Install Chrome browser
         uses: browser-actions/setup-chrome@v1
+
+      - name: Verify Chrome installation
+        run: |
+          which google-chrome || which chromium || echo "Chrome not found in PATH"
+          google-chrome --version 2>/dev/null || chromium --version 2>/dev/null || echo "Chrome version check failed"
 
       - name: Run scraper
         env:
           SCRAPER_HEADLESS: 'true'
-          DB_PATH: scraper/tweets.db
+          DB_PATH: ${{ github.workspace }}/crypto_tweets.db
         run: |
+          echo "Starting scraper at $(date -u '+%Y-%m-%dT%H:%MZ')"
           python scraper/scraper.py
+          echo "Scraper complete — checking output"
+          [ -f crypto_tweets.db ] && echo "✓ Database created: $(wc -c < crypto_tweets.db) bytes" || echo "✗ No database file"
         continue-on-error: true
 
-      - name: Commit DB to data branch
+      - name: Count tweets in database
         run: |
-          cd data-branch
-          cp ../scraper/tweets.db tweets.db
-          git config user.name  "sentinel-bot"
+          python3 << 'EOF'
+          import sqlite3, os
+          db_path = os.environ.get("DB_PATH", "crypto_tweets.db")
+          try:
+              conn = sqlite3.connect(db_path)
+              count = conn.execute("SELECT COUNT(*) FROM tweets").fetchone()[0]
+              print(f"Total tweets in database: {count}")
+              conn.close()
+          except Exception as e:
+              print(f"Error reading database: {e}")
+          EOF
+        continue-on-error: true
+
+      - name: Commit database to repository
+        run: |
+          git config user.name "sentinel-bot"
           git config user.email "sentinel-bot@users.noreply.github.com"
-          git add tweets.db
+          git add crypto_tweets.db
           if git diff --staged --quiet; then
-            echo "No changes to commit"
+            echo "No database changes to commit"
           else
             TWEET_COUNT=$(python3 -c "
-          import sqlite3, sys
+          import sqlite3
           try:
-              c = sqlite3.connect('../scraper/tweets.db')
-              print(c.execute('SELECT COUNT(*) FROM tweets').fetchone()[0])
-          except: print('?')
-          ")
-            git commit -m "chore: scrape run $(date -u '+%Y-%m-%dT%H:%MZ') — ${TWEET_COUNT} tweets"
-            git push
+              c = sqlite3.connect('crypto_tweets.db')
+              count = c.execute('SELECT COUNT(*) FROM tweets').fetchone()[0]
+              print(count)
+              c.close()
+          except Exception as e:
+              print('error')
+          " 2>/dev/null || echo "?")
+            echo "Committing database with ~${TWEET_COUNT} tweets"
+            git commit -m "chore: tweet scrape $(date -u '+%Y-%m-%dT%H:%MZ') — ${TWEET_COUNT} tweets [skip ci]"
+            git push || echo "Push failed (may be normal if no network access)"
           fi
+        continue-on-error: true
 
       - name: Trigger agent cycle on Vercel
         run: |
-          curl -X POST https://sentinel-one-teal.vercel.app/api/cycle \
+          echo "Triggering agent cycle..."
+          HTTP_CODE=$(curl -w "%{http_code}" -X POST https://sentinel-one-teal.vercel.app/api/cycle \
             -H "Content-Type: application/json" \
             --max-time 120 \
             --silent \
-            --show-error
+            --output response.txt)
+          echo "Response code: $HTTP_CODE"
+          echo "Response body:"
+          cat response.txt || echo "(no response)"
         continue-on-error: true
+
+      - name: Workflow summary
+        if: always()
+        run: |
+          echo "=== Scraper Workflow Complete ==="
+          echo "Time: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          [ -f crypto_tweets.db ] && echo "Database exists: $(du -h crypto_tweets.db | cut -f1)" || echo "Database NOT found"
+          echo "Check GitHub Actions logs above for details"

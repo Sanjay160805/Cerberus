@@ -15,11 +15,16 @@ import sqlite3
 import re
 import os
 
-DB_PATH  = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crypto_tweets.db"))
-HEADLESS = os.environ.get("SCRAPER_HEADLESS", "false").lower() == "true"
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+DB_PATH  = os.environ.get("DB_PATH", "crypto_tweets.db")
+HEADLESS = os.environ.get("SCRAPER_HEADLESS", "true").lower() == "true"
+
+logger.info(f"Scraper Configuration:")
+logger.info(f"  DB_PATH: {DB_PATH}")
+logger.info(f"  HEADLESS: {HEADLESS}")
+logger.info(f"  Current directory: {os.getcwd()}")
 
 def setup_driver():
     options = Options()
@@ -374,55 +379,79 @@ def main():
         # Save to database
         if all_tweets:
             print("=" * 80)
-            print(f"💾 Saving {len(all_tweets)} tweets to database...")
+            print(f"💾 Saving {len(all_tweets)} tweets to database at {DB_PATH}...")
             
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS tweets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT,
-                    text TEXT,
-                    time TEXT,
-                    likes TEXT,
-                    retweets TEXT,
-                    replies TEXT,
-                    is_crypto BOOLEAN,
-                    scraped_at TEXT
-                )
-            ''')
-            
-            # Clear old tweets — keep only latest scrape
-            cursor.execute('DELETE FROM tweets')
-
-            for tweet in all_tweets:
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                
+                # Create table if it doesn't exist (preserve existing tweets)
                 cursor.execute('''
-                    INSERT INTO tweets (username, text, time, likes, retweets, replies, is_crypto, scraped_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    tweet['username'],
-                    tweet['text'],
-                    tweet['time'],
-                    tweet['likes'],
-                    tweet['retweets'],
-                    tweet['replies'],
-                    tweet['is_crypto'],
-                    tweet['scraped_at']
-                ))
+                    CREATE TABLE IF NOT EXISTS tweets (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT,
+                        text TEXT,
+                        time TEXT,
+                        likes TEXT,
+                        retweets TEXT,
+                        replies TEXT,
+                        is_crypto BOOLEAN,
+                        scraped_at TEXT UNIQUE
+                    )
+                ''')
+                
+                # Count before
+                cursor.execute('SELECT COUNT(*) FROM tweets')
+                count_before = cursor.fetchone()[0]
+                logger.info(f"Tweets in DB before: {count_before}")
+                
+                # Insert new tweets (allows duplicates by scraped_at timestamp)
+                inserted = 0
+                for tweet in all_tweets:
+                    try:
+                        cursor.execute('''
+                            INSERT OR IGNORE INTO tweets 
+                            (username, text, time, likes, retweets, replies, is_crypto, scraped_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            tweet['username'],
+                            tweet['text'],
+                            tweet['time'],
+                            tweet['likes'],
+                            tweet['retweets'],
+                            tweet['replies'],
+                            1 if tweet['is_crypto'] else 0,
+                            tweet['scraped_at']
+                        ))
+                        inserted += 1
+                    except sqlite3.IntegrityError:
+                        # Duplicate scraped_at, skip
+                        pass
+                
+                conn.commit()
+                
+                # Count after
+                cursor.execute('SELECT COUNT(*) FROM tweets')
+                count_after = cursor.fetchone()[0]
+                logger.info(f"Tweets in DB after: {count_after} (+{inserted} new)")
+                
+                conn.close()
+                
+                print(f"✅ Saved {inserted} new tweets to {DB_PATH}")
+                print(f"   Total in database: {count_after}\n")
+                
+            except Exception as db_error:
+                logger.error(f"Database error: {db_error}")
+                print(f"❌ Failed to save to database: {db_error}\n")
+                raise
             
-            conn.commit()
-            conn.close()
-            
-            print(f"✅ Saved to crypto_tweets.db\n")
-            
-            # Display crypto-related tweets
+            # Display crypto-related tweets from this batch
             crypto_tweets = [t for t in all_tweets if t['is_crypto']]
             print("=" * 80)
-            print(f"🎯 WEB3/CRYPTO RELATED TWEETS ({len(crypto_tweets)} found)")
+            print(f"🎯 CRYPTO-RELATED TWEETS FROM THIS BATCH ({len(crypto_tweets)} found)")
             print("=" * 80)
             
-            for i, tweet in enumerate(crypto_tweets[:20], 1):  # Show top 20
+            for i, tweet in enumerate(crypto_tweets[:10], 1):  # Show top 10
                 print(f"\n#{i} - @{tweet['username']}")
                 print(f"📅 {tweet['time']}")
                 print(f"💬 {tweet['text'][:250]}")
@@ -431,8 +460,8 @@ def main():
                 print(f"❤️  {tweet['likes']} | 🔄 {tweet['retweets']} | 💭 {tweet['replies']}")
                 print("─" * 80)
             
-            if len(crypto_tweets) > 20:
-                print(f"\n... and {len(crypto_tweets) - 20} more crypto tweets in database")
+            if len(crypto_tweets) > 10:
+                print(f"\n... and {len(crypto_tweets) - 10} more crypto tweets in this batch")
             
         else:
             print("\n❌ No tweets collected. All Nitter instances may be down.")
@@ -440,22 +469,35 @@ def main():
     
     finally:
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+                logger.info("Chrome driver closed")
+            except:
+                pass
     
     print("\n" + "=" * 80)
-    print("✅ COMPLETE!")
+    print("✅ SCRAPER COMPLETE!")
     print("=" * 80)
-    print(f"📊 Total tweets: {len(all_tweets)}")
-    print(f"🎯 Crypto-related: {sum(1 for t in all_tweets if t['is_crypto'])}")
-    print(f"💾 Database: crypto_tweets.db")
+    print(f"📊 Total tweets collected this run: {len(all_tweets)}")
+    if all_tweets:
+        print(f"🎯 Crypto-related: {sum(1 for t in all_tweets if t['is_crypto'])}")
+    print(f"💾 Database path: {DB_PATH}")
     print("=" * 80 + "\n")
 
 if __name__ == "__main__":
     try:
+        logger.info("=" * 80)
+        logger.info("🚀 SENTINEL TWEET SCRAPER STARTING")
+        logger.info("=" * 80)
         main()
+        logger.info("✅ Scraper finished successfully")
+        exit(0)
     except KeyboardInterrupt:
-        print("\n\n⚠️  Interrupted by user")
+        logger.warning("\n⚠️  Interrupted by user")
+        exit(1)
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        logger.error(f"❌ Fatal error: {e}")
         import traceback
+        traceback.print_exc()
+        exit(1)
         traceback.print_exc()

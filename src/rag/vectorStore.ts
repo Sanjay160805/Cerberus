@@ -30,7 +30,7 @@ export async function similaritySearch(
     const store = await getVectorStore();
     return await store.similaritySearch(query, k);
   } catch (error) {
-    logger.warn("Similarity search failed — returning empty, keyword fallback will handle retrieval");
+    // Silently fail — keyword fallback will handle retrieval in threat scoring
     return [];
   }
 }

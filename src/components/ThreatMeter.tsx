@@ -7,6 +7,7 @@ export default function ThreatMeter() {
   const [action, setAction] = useState("—");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
+  const [threatRatio, setThreatRatio] = useState("0.00%");
 
   useEffect(() => {
     const load = async () => {
@@ -14,10 +15,20 @@ export default function ThreatMeter() {
         const r = await fetch("/api/status").then(x => x.json());
         const d = r.agent?.lastDecision;
         if (d) {
-          setScore(d.threatScore ?? 0);
-          setLevel(d.threatLevel ?? "LOW");
+          const threatScore = d.threatScore ?? d.threat_score ?? 0;
+          setScore(threatScore);
+          
+          // Calculate threat level based on score
+          let threatLevel = "LOW";
+          if (threatScore >= 0.85) threatLevel = "CRITICAL";
+          else if (threatScore >= 0.6) threatLevel = "HIGH";
+          else if (threatScore >= 0.3) threatLevel = "MEDIUM";
+          else threatLevel = "LOW";
+          
+          setLevel(threatLevel);
           setAction(d.action ?? "—");
           setReason(d.reasoning ?? d.reason ?? "");
+          setThreatRatio(`${(threatScore * 100).toFixed(2)}%`);
         }
       } finally { setLoading(false); }
     };
@@ -52,6 +63,9 @@ export default function ThreatMeter() {
           </div>
           <div className="threat-bar-track">
             <div className="threat-bar-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem", marginBottom: "0.75rem", fontWeight: 600 }}>
+            Hedera Chain Threat Ratio: <span style={{ color: color, fontWeight: 700 }}>{threatRatio}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.5rem 0" }}>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Last action:</span>
