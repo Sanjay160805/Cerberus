@@ -5,24 +5,29 @@ interface StatusData { ok: boolean; agent: { running: boolean; tweetCount: numbe
 
 export default function StatusBadge() {
   const [status, setStatus] = useState<StatusData | null>(null);
+  const [apiOnline, setApiOnline] = useState(false);
 
   useEffect(() => {
-    const load = () => fetch("/api/status").then(r => r.json()).then(setStatus).catch(() => {});
+    const load = () => fetch("/api/status")
+      .then(r => r.json())
+      .then(data => { setStatus(data); setApiOnline(true); })
+      .catch(() => setApiOnline(false));
     load();
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, []);
 
   const agent = status?.agent;
-  const isRunning = agent?.running ?? false;
 
   const rows = agent ? [
-    { label: "Network",     value: "Hedera Testnet",                                                                                                           color: "#7c3aed" },
-    { label: "Tweets",      value: (agent.tweetCount ?? 0).toLocaleString(),                                                                                   color: "#0ea5e9" },
-    { label: "Last Action", value: agent.lastDecision?.action ?? "—",                                                                                         color: "#7c3aed" },
-    { label: "Last Cycle",  value: agent.lastDecision?.timestamp ? new Date(agent.lastDecision.timestamp.replace(" ", "T")).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "Never", color: "var(--text-secondary)" },
-    { label: "Interval",    value: `${((agent.interval ?? 3600000) / 60000).toFixed(0)} min`,                                                                  color: "#f59e0b" },
-    { label: "HCS Topic",   value: agent.lastDecision?.hcsTopic ?? "0.0.8008987",                                                                             color: "#10b981" },
+    { label: "Network",     value: "Hedera Testnet",   color: "#7c3aed" },
+    { label: "Tweets",      value: (agent.tweetCount ?? 0).toLocaleString(), color: "#0ea5e9" },
+    { label: "Last Action", value: agent.lastDecision?.action ?? "—", color: "#7c3aed" },
+    { label: "Last Cycle",  value: agent.lastDecision?.timestamp
+        ? new Date(agent.lastDecision.timestamp.replace(" ", "T")).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+        : "Never", color: "var(--text-secondary)" },
+    { label: "Interval",    value: `${((agent.interval ?? 3600000) / 60000).toFixed(0)} min`, color: "#f59e0b" },
+    { label: "HCS Topic",   value: agent.lastDecision?.hcsTopic ?? "0.0.8314584", color: "#10b981" },
   ] : [];
 
   return (
@@ -32,9 +37,9 @@ export default function StatusBadge() {
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
         System Status
-        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.72rem", fontWeight: 600, color: isRunning ? "#065f46" : "#dc2626" }}>
-          <span className={`pulse-dot ${isRunning ? "running" : "stopped"}`} />
-          {isRunning ? "Online" : "Offline"}
+        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.72rem", fontWeight: 600, color: apiOnline ? "#065f46" : "#dc2626" }}>
+          <span className={`pulse-dot ${apiOnline ? "running" : "stopped"}`} />
+          {apiOnline ? "Online" : "Offline"}
         </span>
       </div>
 
