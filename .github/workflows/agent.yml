@@ -1,0 +1,17 @@
+name: Sentinel Agent Cycle
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # Run hourly
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Sentinel Cycle
+        run: |
+          curl -X POST https://sentinel-one-teal.vercel.app/api/cycle \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            -w "\nStatus: %{http_code}\n"

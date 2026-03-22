@@ -22,14 +22,15 @@ export async function POST() {
       };
 
       // Don't await — let it run in the background
-      fetch(
-        `${process.env.VERCEL_URL ? "https://" + process.env.VERCEL_URL : "http://localhost:3000"}/api/execute`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(executePayload),
-        }
-      ).catch((e) => logger.error("Failed to trigger execute endpoint", e));
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "https://sentinel-one-teal.vercel.app";
+      fetch(`${appUrl}/api/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(executePayload),
+      }).catch((e) =>
+        logger.error("Failed to trigger execute endpoint", e?.message ?? e)
+      );
 
       logger.info("Keeper execution triggered asynchronously");
     }
