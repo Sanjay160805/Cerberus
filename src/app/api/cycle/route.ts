@@ -8,14 +8,40 @@ export async function POST() {
   try {
     const { runAgentCycle } = await import("@/agent/index");
     
-    // Apply 25-second timeout to Gemini analysis
-    logger.info("⏱️ Starting analysis with 25s timeout");
-    const result = await Promise.race([
-      runAgentCycle(),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Analysis timeout after 25s')), 25000)
-      )
-    ]) as { decision: any; position: any };
+    // Apply 35-second timeout to Gemini analysis (with graceful fallback)
+    logger.info("⏱️ Starting analysis with 35s timeout");
+    let result: { decision: any; position: any } | null = null;
+    try {
+      result = await Promise.race([
+        runAgentCycle(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Analysis timeout after 35s')), 35000)
+        )
+      ]) as { decision: any; position: any };
+    } catch (timeoutError) {
+      logger.warn("⏰ Analysis timeout - using fallback decision");
+      // Fallback: HOLD decision when analysis times out
+      result = {
+        decision: {
+          action: "HOLD",
+          type: "HOLD",
+          reason: "Analysis timeout - defaulting to HOLD",
+          threat_score: 0.5,
+          volatility: { realized: 0, isHigh: false, level: "LOW" },
+          price: 0,
+          cycle: 0,
+          timestamp: new Date().toISOString(),
+        },
+        position: {
+          asset: "HBAR",
+          deposited: "0.0000",
+          borrowed: "0.0000",
+          healthFactor: "∞",
+          apy: "94.15%",
+          rewards: "0.0000",
+        },
+      };
+    }
     
     if (!result) {
       return NextResponse.json(
