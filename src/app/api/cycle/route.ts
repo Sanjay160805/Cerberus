@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 
-export const maxDuration = 60;
+export const maxDuration = 1220;
 
 export async function POST() {
   try {
     const { runAgentCycle } = await import("@/agent/index");
     
     // Run cycle with graceful fallback on timeout
-    logger.info("⏱️ Starting cycle with 50s timeout");
+    logger.info("⏱️ Starting cycle with 110s timeout");
     let result;
     try {
       result = await Promise.race([
         runAgentCycle(),
         new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Cycle timeout after 50s')), 50000)
+          setTimeout(() => reject(new Error('Cycle timeout after 110s')), 110000)
         )
       ]);
     } catch (timeoutError) {
