@@ -14,19 +14,33 @@ const LENDING_POOL_ABI = [
 // Convert Hedera account ID (0.0.X) to EVM address via mirror node
 async function toEvmAddress(accountId: string): Promise<string> {
   if (!accountId || accountId.startsWith("0x")) return accountId;
+
+  // Extract only digits from each segment explicitly
+  const segments = String(accountId).split(".");
+  const shard = (segments[0] ?? "0").replace(/\D/g, "") || "0";
+  const realm = (segments[1] ?? "0").replace(/\D/g, "") || "0";
+  const num   = (segments[2] ?? "0").replace(/\D/g, "") || "0";
+  const safeId = `${shard}.${realm}.${num}`;
+
+  logger.info(`toEvmAddress safeId="${safeId}" safeIdLen=${safeId.length}`);
+
   try {
-    const res = await fetch(
-      `https://testnet.mirrornode.hedera.com/api/v1/accounts/${accountId}`
-    );
+    const url = `https://testnet.mirrornode.hedera.com/api/v1/accounts/${shard}.${realm}.${num}`;
+    logger.info(`Mirror node fetch URL: ${url}`);
+    const res = await fetch(url);
     const data = await res.json();
+    logger.info(`Mirror node evm_address: "${data?.evm_address}"`);
     if (data?.evm_address) {
-      const addr = data.evm_address;
+      const addr = String(data.evm_address).trim().replace(/"/g, "");
       return addr.startsWith("0x") ? addr : "0x" + addr;
     }
-  } catch {}
-  // Fallback: derive from numeric part
-  const num = parseInt(accountId.split(".")[2] ?? "0");
-  return "0x" + num.toString(16).padStart(40, "0");
+  } catch (e) {
+    logger.error(`Mirror node fetch failed`, e);
+  }
+
+  // Fallback: derive from numeric account number
+  const numInt = parseInt(num);
+  return "0x" + numInt.toString(16).padStart(40, "0");
 }
 
 function getLendingPool(): ethers.Contract {
@@ -38,14 +52,8 @@ export async function getUserAccountData(
 ): Promise<UserAccountData | null> {
   try {
     const signer = getSigner();
-
-    // Convert Hedera account ID to EVM address if needed
-    const evmAddress = accountId
-      ? await toEvmAddress(accountId)
-      : signer.address;
-
-    logger.info(`Fetching Bonzo position for EVM address: ${evmAddress}`);
-
+    const evmAddress = accountId ? await toEvmAddress(accountId) : signer.address;
+    logger.info(`Calling getUserAccountData with evmAddress="${evmAddress}"`);
     const pool = getLendingPool();
     const data = await pool.getUserAccountData(evmAddress);
     return {
@@ -75,9 +83,7 @@ export async function deposit(asset: string, amount: bigint): Promise<string | n
   try {
     const pool = getLendingPool();
     const signer = getSigner();
-    const tx = await pool.deposit(asset, amount, signer.address, 0, {
-      gasLimit: 300000,
-    });
+    const tx = await pool.deposit(asset, amount, signer.address, 0, { gasLimit: 300000 });
     await tx.wait();
     return tx.hash;
   } catch (error) {
@@ -90,9 +96,7 @@ export async function withdraw(asset: string, amount: bigint): Promise<string | 
   try {
     const pool = getLendingPool();
     const signer = getSigner();
-    const tx = await pool.withdraw(asset, amount, signer.address, {
-      gasLimit: 300000,
-    });
+    const tx = await pool.withdraw(asset, amount, signer.address, { gasLimit: 300000 });
     await tx.wait();
     return tx.hash;
   } catch (error) {

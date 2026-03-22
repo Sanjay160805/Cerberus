@@ -3,14 +3,11 @@ import {
   createContext, useContext, useState,
   useCallback, useEffect, useRef, ReactNode,
 } from "react";
-import { HashConnect } from "@hashgraph/hashconnect";
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 const APP_METADATA = {
   name: "Sentinel",
   description: "Intelligent Keeper Agent on Hedera",
-  icon: "https://sentinel-one-teal.vercel.app/favicon.ico",
+  icons: ["https://sentinel-one-teal.vercel.app/favicon.ico"],
   url: "https://sentinel-one-teal.vercel.app",
 };
 
@@ -39,68 +36,44 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [inputError, setInputError] = useState("");
   const [hcChecking, setHcChecking] = useState(false);
 
-  const hcRef = useRef<HashConnect | null>(null);
-
-  // Restore session on mount
+  // Restore session on mount — sanitize stored value
   useEffect(() => {
     const saved = sessionStorage.getItem("sentinel-wallet");
-    if (saved) { setAccountId(saved); setConnected(true); }
+    if (saved) {
+      const clean = saved.replace(/[^0-9.]/g, "");
+      if (/^0\.0\.\d+$/.test(clean)) {
+        setAccountId(clean);
+        setConnected(true);
+      } else {
+        sessionStorage.removeItem("sentinel-wallet");
+      }
+    }
   }, []);
 
-  // Open the modal
   const connect = useCallback(async () => {
     setShowModal(true);
     setInputValue("");
     setInputError("");
   }, []);
 
-  // HashConnect (HashPack browser extension) flow
+  // HashPack button — opens extension, falls back to manual
   const connectWithHashPack = useCallback(async () => {
-  setHcChecking(true);
-  setInputError("");
-
-  try {
-    const { HashConnect } = await import("@hashgraph/hashconnect");
-
-    if (!hcRef.current) {
-      hcRef.current = new HashConnect();
+    setHcChecking(true);
+    setInputError("");
+    try {
+      window.open("https://www.hashpack.app", "_blank");
+      setTimeout(() => {
+        setInputError("Copy your account ID from HashPack and enter it below.");
+        setHcChecking(false);
+      }, 1500);
+    } catch {
+      setHcChecking(false);
     }
+  }, []);
 
-    const hc = hcRef.current as any;
-    await hc.init(APP_METADATA, "testnet", false);
-
-    // Listen for pairing with a 15s timeout
-    const timeout = setTimeout(() => {
-      setHcChecking(false);
-      setInputError("HashPack didn't respond — enter your account ID manually below.");
-    }, 15000);
-
-    hc.pairingEvent.once((pairingData: any) => {
-      clearTimeout(timeout);
-      const id = pairingData?.accountIds?.[0];
-      if (id) {
-        setAccountId(id);
-        setConnected(true);
-        sessionStorage.setItem("sentinel-wallet", id);
-        setShowModal(false);
-      } else {
-        setInputError("No account returned. Enter your account ID manually below.");
-      }
-      setHcChecking(false);
-    });
-
-    hc.connectToLocalWallet();
-
-  } catch (err: any) {
-    console.error("HashConnect error:", err);
-    setInputError("HashPack connection failed — enter your account ID manually below.");
-    setHcChecking(false);
-  }
-}, []);
-
-  // Manual account ID input
+  // Manual input — sanitize before saving
   const confirmConnect = useCallback(() => {
-    const id = inputValue.trim();
+    const id = inputValue.trim().replace(/[^0-9.]/g, "");
     if (!/^0\.0\.\d+$/.test(id)) {
       setInputError("Invalid format. Use 0.0.XXXXXX");
       return;
@@ -116,7 +89,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setConnected(false);
     setAccountId(null);
     sessionStorage.removeItem("sentinel-wallet");
-    hcRef.current = null;
   }, []);
 
   return (
@@ -198,7 +170,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               </div>
               <div style={{ textAlign: "left" }}>
                 <div style={{ fontWeight: 700, fontSize: "0.88rem" }}>
-                  {hcChecking ? "Waiting for HashPack..." : "Connect with HashPack"}
+                  {hcChecking ? "Opening HashPack..." : "Connect with HashPack"}
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 400 }}>
                   Browser extension wallet

@@ -18,13 +18,9 @@ export default function PositionCard() {
   const [loading, setLoading] = useState(true);
   const [hbarPrice, setHbarPrice] = useState(0);
   const [tab, setTab] = useState<Tab>("overview");
-  const [amount, setAmount] = useState("");
-  const [txLoading, setTxLoading] = useState(false);
-  const [txResult, setTxResult] = useState<{ ok: boolean; message: string; txHash?: string } | null>(null);
   const { connected, accountId } = useWallet();
 
   const loadPosition = async () => {
-    // Don't fetch if no wallet connected
     if (!connected || !accountId) {
       setPos(null);
       setLoading(false);
@@ -34,7 +30,6 @@ export default function PositionCard() {
       const url = `/api/positions?accountId=${encodeURIComponent(accountId)}`;
       const r = await fetch(url).then(d => d.json());
       setPos(r.position ?? null);
-
       const raw = r.price?.value ?? 0;
       if (raw > 0) {
         setHbarPrice(raw);
@@ -49,55 +44,17 @@ export default function PositionCard() {
     }
   };
 
-  // Reload whenever connected wallet changes
   useEffect(() => {
+    if (!connected || !accountId) {
+      setPos(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     loadPosition();
     const t = setInterval(loadPosition, 30000);
     return () => clearInterval(t);
-  }, [accountId]);
-
-  const handleAction = async (action: "deposit" | "withdraw") => {
-    if (!amount || parseFloat(amount) <= 0) return;
-    setTxLoading(true);
-    setTxResult(null);
-    try {
-      const res = await fetch("/api/positions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          amount: parseFloat(amount),
-          accountId, // pass connected wallet to API
-        }),
-      }).then(r => r.json());
-
-      setTxResult({
-        ok: res.ok,
-        message: res.message ?? res.error ?? "Unknown result",
-        txHash: res.txHash,
-      });
-
-      if (res.ok) {
-        // Optimistically update the displayed position immediately
-        if (pos) {
-          const current = parseFloat(pos.deposited);
-          const delta = parseFloat(amount);
-          const updated = action === "deposit"
-            ? (current + delta).toFixed(4)
-            : Math.max(0, current - delta).toFixed(4);
-          setPos({ ...pos, deposited: updated });
-        }
-        setAmount("");
-        setTimeout(() => loadPosition(), 3000); // refresh from chain after 3s
-        setTimeout(() => setTxResult(null), 6000);
-      }
-    } catch (e) {
-      setTxResult({ ok: false, message: String(e) });
-    } finally {
-      setTxLoading(false);
-    }
-  };
+  }, [accountId, connected]);
 
   const deposited = parseFloat(pos?.deposited ?? "0");
   const usdValue = (deposited * hbarPrice).toFixed(2);
@@ -143,13 +100,13 @@ export default function PositionCard() {
         </div>
       )}
 
-      {/* Tabs — only show deposit/withdraw if connected */}
+      {/* Tabs */}
       <div style={{ display: "flex", gap: "0.25rem", marginBottom: "1rem" }}>
         {tabs.map(t => (
           (!connected && t.id !== "overview") ? null : (
             <button
               key={t.id}
-              onClick={() => { setTab(t.id); setTxResult(null); setAmount(""); }}
+              onClick={() => setTab(t.id)}
               style={{
                 padding: "0.3rem 0.75rem",
                 borderRadius: 6, border: "none",
@@ -177,7 +134,7 @@ export default function PositionCard() {
               </div>
             ))}
           </div>
-        ) : pos ? (
+        ) : pos && deposited > 0 ? (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {rows.map(row => (
               <div key={row.label} className="data-row">
@@ -194,9 +151,11 @@ export default function PositionCard() {
             ))}
           </div>
         ) : (
-          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {connected ? "No position found. Deposit HBAR to get started." : "Connect your wallet to view your position."}
-          </p>
+          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+            {connected
+              ? "No position found. Deposit HBAR on Bonzo Finance to get started."
+              : "Connect your wallet to view your position."}
+          </div>
         )
       )}
 
@@ -206,73 +165,24 @@ export default function PositionCard() {
           <div style={{ background: "#f5f3ff", borderRadius: 8, padding: "0.75rem", fontSize: "0.75rem", color: "#5b21b6" }}>
             Current position: <strong>{pos?.deposited ?? "0.0000"} HBAR</strong> · APY: <strong>{pos?.apy ?? "94.15%"}</strong>
           </div>
-
-          <div>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.4rem" }}>
-              Amount to deposit (HBAR)
-            </label>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                min="0" step="0.1"
-                style={{
-                  flex: 1, padding: "0.6rem 0.75rem",
-                  borderRadius: 8, border: "1.5px solid var(--border)",
-                  fontSize: "0.9rem", fontFamily: "JetBrains Mono, monospace",
-                  outline: "none", color: "var(--text-primary)", background: "white",
-                }}
-              />
-              <button onClick={() => setAmount("1")}
-                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                1 HBAR
-              </button>
-              <button onClick={() => setAmount("5")}
-                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                5 HBAR
-              </button>
-            </div>
-            {amount && hbarPrice > 0 && (
-              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
-                ≈ ${(parseFloat(amount) * hbarPrice).toFixed(4)} USD
-              </div>
-            )}
+          <div style={{ background: "#fafafa", borderRadius: 8, padding: "1rem", fontSize: "0.78rem", color: "#374151", lineHeight: 1.7, border: "1px solid #e8eaf0" }}>
+            <div style={{ fontWeight: 700, marginBottom: "0.5rem" }}>How to deposit HBAR into Bonzo:</div>
+            <ol style={{ paddingLeft: "1.1rem", margin: 0 }}>
+              <li>Open HashPack → select your testnet account</li>
+              <li>Click the button below to open Bonzo Finance</li>
+              <li>Supply HBAR → approve in HashPack</li>
+              <li>Return here — your position updates automatically ✓</li>
+            </ol>
           </div>
-
-          <button
-            onClick={() => handleAction("deposit")}
-            disabled={txLoading || !amount || parseFloat(amount) <= 0}
+          <a
+            href="https://testnet.bonzo.finance"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn btn-primary"
-            style={{ width: "100%", justifyContent: "center", padding: "0.65rem" }}
+            style={{ width: "100%", justifyContent: "center", padding: "0.65rem", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.4rem" }}
           >
-            {txLoading ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                  <path d="M21 12a9 9 0 11-6.219-8.56"/>
-                </svg>
-                Depositing...
-              </>
-            ) : `Deposit ${amount || "0"} HBAR into Bonzo`}
-          </button>
-
-          {txResult && (
-            <div style={{
-              padding: "0.65rem 0.75rem", borderRadius: 8,
-              background: txResult.ok ? "#f0fdf4" : "#fef2f2",
-              border: `1px solid ${txResult.ok ? "#bbf7d0" : "#fecaca"}`,
-              fontSize: "0.75rem",
-              color: txResult.ok ? "#166534" : "#dc2626",
-            }}>
-              {txResult.ok ? "✓ " : "✗ "}{txResult.message}
-              {txResult.txHash && (
-                <div className="mono" style={{ fontSize: "0.65rem", marginTop: "0.25rem", opacity: 0.7 }}>
-                  tx: {txResult.txHash.slice(0, 32)}...
-                </div>
-              )}
-            </div>
-          )}
+            Open Bonzo Finance Testnet ↗
+          </a>
         </div>
       )}
 
@@ -282,69 +192,24 @@ export default function PositionCard() {
           <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "0.75rem", fontSize: "0.75rem", color: "#065f46" }}>
             Available to withdraw: <strong>{pos?.deposited ?? "0.0000"} HBAR</strong>
           </div>
-
-          <div>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "0.4rem" }}>
-              Amount to withdraw (HBAR)
-            </label>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                min="0" step="0.1"
-                style={{
-                  flex: 1, padding: "0.6rem 0.75rem",
-                  borderRadius: 8, border: "1.5px solid var(--border)",
-                  fontSize: "0.9rem", fontFamily: "JetBrains Mono, monospace",
-                  outline: "none", color: "var(--text-primary)", background: "white",
-                }}
-              />
-              <button onClick={() => setAmount(pos?.deposited ?? "0")}
-                style={{ padding: "0.6rem 0.75rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "0.72rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                Max
-              </button>
-            </div>
-            {amount && hbarPrice > 0 && (
-              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
-                ≈ ${(parseFloat(amount) * hbarPrice).toFixed(4)} USD
-              </div>
-            )}
+          <div style={{ background: "#fafafa", borderRadius: 8, padding: "1rem", fontSize: "0.78rem", color: "#374151", lineHeight: 1.7, border: "1px solid #e8eaf0" }}>
+            <div style={{ fontWeight: 700, marginBottom: "0.5rem" }}>How to withdraw HBAR from Bonzo:</div>
+            <ol style={{ paddingLeft: "1.1rem", margin: 0 }}>
+              <li>Open HashPack → select your testnet account</li>
+              <li>Click the button below to open Bonzo Finance</li>
+              <li>Find your position → click Withdraw → approve in HashPack</li>
+              <li>Return here — your position updates automatically ✓</li>
+            </ol>
           </div>
-
-          <button
-            onClick={() => handleAction("withdraw")}
-            disabled={txLoading || !amount || parseFloat(amount) <= 0}
+          <a
+            href="https://testnet.bonzo.finance"
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn"
-            style={{ width: "100%", justifyContent: "center", padding: "0.65rem", background: "#ef4444", color: "white", border: "none" }}
+            style={{ width: "100%", justifyContent: "center", padding: "0.65rem", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.4rem", background: "#ef4444", color: "white", border: "none" }}
           >
-            {txLoading ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                  <path d="M21 12a9 9 0 11-6.219-8.56"/>
-                </svg>
-                Withdrawing...
-              </>
-            ) : `Withdraw ${amount || "0"} HBAR from Bonzo`}
-          </button>
-
-          {txResult && (
-            <div style={{
-              padding: "0.65rem 0.75rem", borderRadius: 8,
-              background: txResult.ok ? "#f0fdf4" : "#fef2f2",
-              border: `1px solid ${txResult.ok ? "#bbf7d0" : "#fecaca"}`,
-              fontSize: "0.75rem",
-              color: txResult.ok ? "#166534" : "#dc2626",
-            }}>
-              {txResult.ok ? "✓ " : "✗ "}{txResult.message}
-              {txResult.txHash && (
-                <div className="mono" style={{ fontSize: "0.65rem", marginTop: "0.25rem", opacity: 0.7 }}>
-                  tx: {txResult.txHash.slice(0, 32)}...
-                </div>
-              )}
-            </div>
-          )}
+            Open Bonzo Finance Testnet ↗
+          </a>
         </div>
       )}
     </div>

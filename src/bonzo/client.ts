@@ -2,12 +2,20 @@ import { ethers } from "ethers";
 import { BONZO_RPC_URL } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
+// Hedera testnet network — explicitly defined to disable ENS lookups
+const HEDERA_TESTNET_NETWORK = {
+  name: "hedera-testnet",
+  chainId: 296,
+};
+
 let provider: ethers.JsonRpcProvider | null = null;
 let signer: ethers.Wallet | null = null;
 
 export function getProvider(): ethers.JsonRpcProvider {
   if (!provider) {
-    provider = new ethers.JsonRpcProvider(BONZO_RPC_URL);
+    provider = new ethers.JsonRpcProvider(BONZO_RPC_URL, HEDERA_TESTNET_NETWORK, {
+      staticNetwork: true, // prevents network auto-detection and ENS
+    });
     logger.info(`Bonzo provider connected: ${BONZO_RPC_URL}`);
   }
   return provider;

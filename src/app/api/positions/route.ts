@@ -4,8 +4,11 @@ import { getHBARUSDPrice, getPriceFeedMeta } from "@/oracle/priceFeeds";
 
 export async function GET(req: NextRequest) {
   try {
-    // Read connected wallet from query param e.g. /api/positions?accountId=0.0.12345
-    const accountId = req.nextUrl.searchParams.get("accountId") ?? undefined;
+    const raw = req.nextUrl.searchParams.get("accountId") ?? "";
+    // Strip everything except digits and dots to remove hidden chars
+    const accountId = raw.replace(/[^0-9.]/g, "") || undefined;
+
+    console.log(`GET /api/positions accountId raw="${raw}" clean="${accountId}" rawLen=${raw.length}`);
 
     const [position, hbarPrice, priceMeta] = await Promise.all([
       getVaultPosition(accountId),
@@ -29,7 +32,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { action, amount, accountId } = await req.json();
+    const { action, amount, accountId: rawAccountId } = await req.json();
+    const accountId = typeof rawAccountId === "string"
+      ? rawAccountId.replace(/[^0-9.]/g, "") || undefined
+      : undefined;
 
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       return NextResponse.json({ ok: false, error: "Invalid amount" }, { status: 400 });
@@ -47,10 +53,7 @@ export async function POST(req: NextRequest) {
           message: `Deposited ${amount} HBAR into Bonzo`,
         });
       } catch (err: any) {
-        return NextResponse.json({
-          ok: false,
-          error: err?.message ?? "Deposit failed",
-        }, { status: 400 });
+        return NextResponse.json({ ok: false, error: err?.message ?? "Deposit failed" }, { status: 400 });
       }
     }
 
@@ -63,10 +66,7 @@ export async function POST(req: NextRequest) {
           message: `Withdrew ${amount} HBAR from Bonzo`,
         });
       } catch (err: any) {
-        return NextResponse.json({
-          ok: false,
-          error: err?.message ?? "Withdraw failed",
-        }, { status: 400 });
+        return NextResponse.json({ ok: false, error: err?.message ?? "Withdraw failed" }, { status: 400 });
       }
     }
 
