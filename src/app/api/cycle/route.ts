@@ -17,8 +17,12 @@ export async function POST() {
 
     // Log decision to HCS IMMEDIATELY — must complete before execution
     if (result.decision) {
-      await logDecisionToHCS(result.decision);
-      logger.info("✓ Decision logged to HCS");
+      try {
+        await logDecisionToHCS(result.decision);
+        logger.info("✓ Decision logged to HCS");
+      } catch (hcsError) {
+        logger.error("HCS logging failed, but continuing with execution", hcsError);
+      }
     }
 
     // Fire-and-forget: execute the keeper action independently
