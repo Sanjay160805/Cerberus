@@ -18,7 +18,7 @@ export interface UserAccountData {
 }
 
 export interface KeeperAction {
-  type: "HARVEST" | "REBALANCE" | "PROTECT" | "TIGHTEN" | "WIDEN" | "HOLD";
+  type: "HARVEST" | "REBALANCE" | "PROTECT" | "TIGHTEN" | "WIDEN" | "HOLD" | "BORROW" | "REPAY";
   reason: string;
   params?: Record<string, unknown>;
 }

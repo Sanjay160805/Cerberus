@@ -13,6 +13,7 @@ interface WalletState {
   availableExtensions: { id: string; name?: string; icon?: string }[];
   connect: (extensionId?: string) => Promise<void>;
   disconnect: () => void;
+  executeContractCall: (to: string, data: string, amountHbar?: string) => Promise<string>;
 }
 
 const WalletContext = createContext<WalletState>({
@@ -22,6 +23,7 @@ const WalletContext = createContext<WalletState>({
   availableExtensions: [],
   connect: async () => {},
   disconnect: () => {},
+  executeContractCall: async () => "",
 });
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -175,9 +177,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // ── Execute Contract Call ────────────────────────────────────────────────
+  const executeContractCall = useCallback(async (to: string, data: string, amountHbar: string = "0") => {
+    const connector = connectorRef.current;
+    if (!connector || connector.signers.length === 0) {
+      throw new Error("Wallet not connected");
+    }
+
+    const signer = connector.signers[0];
+    
+    // Dynamically import SDK elements & ethers utils
+    const { ContractExecuteTransaction, ContractId, Hbar } = await import("@hashgraph/sdk");
+    const { getBytes } = await import("ethers");
+
+    const tx = new ContractExecuteTransaction()
+      .setContractId(ContractId.fromEvmAddress(0, 0, to))
+      .setGas(300000)
+      .setFunctionParameters(getBytes(data));
+
+    if (parseFloat(amountHbar) > 0) {
+      tx.setPayableAmount(Hbar.fromString(amountHbar));
+    }
+
+    // Freeze with signer — HWCDAppSigner handles account ID and transaction ID generation
+    await tx.freezeWithSigner(signer);
+
+    // Sign and execute via the wallet signer (HashPack)
+    const response = await signer.call(tx);
+    // SDK response has transactionId
+    return (response as any).transactionId?.toString() ?? response.toString();
+  }, []);
+
   return (
     <WalletContext.Provider value={{
-      connected, accountId, connecting, availableExtensions, connect, disconnect,
+      connected, accountId, connecting, availableExtensions, connect, disconnect, executeContractCall,
     }}>
       {sdkReady ? children : <div style={{ padding: "1rem", textAlign: "center", color: "var(--text-secondary)" }}>Initializing wallet SDK...</div>}
     </WalletContext.Provider>

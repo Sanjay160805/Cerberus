@@ -23,7 +23,7 @@ export async function retrieveContext(
 
   // Keyword fallback — no embeddings needed
   const keywords = query.toLowerCase().split(" ");
-  const allDocs = getCachedDocs();
+  const allDocs = await getCachedDocs();
 
   const matched = allDocs
     .filter((doc: Document) =>

@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [hbarPrice, setHbarPrice] = useState<number>(0);
   const [lastScraped, setLastScraped] = useState<string | null>(null);
   const [nextUpdate, setNextUpdate] = useState<number>(60);
+  const [vaultData, setVaultData] = useState<any>(null);
   const { connected, accountId, connect, disconnect } = useWallet();
 
   useEffect(() => {
@@ -47,21 +48,25 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const r = await fetch("/api/positions").then(x => x.json());
-        let p = r.price?.value ?? 0;
-        if (p === 0) {
-          const cg = await fetch(
-            "https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd"
-          ).then(x => x.json()).catch(() => ({}));
-          p = cg?.["hedera-hashgraph"]?.usd ?? 0;
+        const query = accountId ? `?accountId=${accountId}` : "";
+        const r = await fetch(`/api/positions${query}`).then(x => x.json());
+        if (r.ok) {
+          setVaultData(r.position);
+          let p = r.price?.value ?? 0;
+          if (p === 0) {
+            const cg = await fetch(
+              "https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd"
+            ).then(x => x.json()).catch(() => ({}));
+            p = cg?.["hedera-hashgraph"]?.usd ?? 0;
+          }
+          setHbarPrice(p);
         }
-        setHbarPrice(p);
       } catch {}
     };
     load();
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
     const load = async () => {
@@ -188,7 +193,7 @@ export default function Dashboard() {
             <div className="stat-box">
               <div className="stat-label">APY</div>
               <div className="stat-value mono" style={{ fontSize: "1.5rem", color: "var(--text-primary)", textShadow: "2px 2px 0px var(--mint)" }}>
-                94.15%
+                {vaultData?.apy ?? "94.15%"}
               </div>
               <div className="stat-delta neutral" style={{ background: "var(--purple)", color: "white", padding: "0 4px", border: "1px solid black" }}>BONZO FINANCE</div>
             </div>

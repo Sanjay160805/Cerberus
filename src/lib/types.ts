@@ -14,7 +14,7 @@ export interface AgentDecision {
   id?: number;
   cycle: number;
   timestamp: string;
-  action: "HOLD" | "HARVEST" | "REBALANCE" | "PROTECT" | "TIGHTEN" | "WIDEN";
+  action: "HOLD" | "HARVEST" | "REBALANCE" | "PROTECT" | "TIGHTEN" | "WIDEN" | "BORROW" | "REPAY";
   reasoning: string;
   threat_score: number;
   volatility: number;

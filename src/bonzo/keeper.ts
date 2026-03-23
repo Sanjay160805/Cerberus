@@ -1,13 +1,24 @@
 import { ThreatAnalysis, VaultPosition } from "@/lib/types";
 import { VolatilityResult } from "@/analysis/volatilityCalculator";
-import { getUserAccountData } from "./lendingPool";
-import { THREAT_THRESHOLD } from "@/lib/constants";
+import { getUserAccountData, borrow, repay } from "./lendingPool";
+import { getReserveData } from "./dataProvider";
+import { THREAT_THRESHOLD, BONZO_LENDING_POOL } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { KeeperAction } from "./types";
 import { depositHBAR, withdrawHBAR } from "./wethGateway";
-import { BONZO_LENDING_POOL } from "@/lib/constants";
+import { ethers } from "ethers";
 
 const ADJUST_FRACTION = 0.20;
+
+/**
+ * Calculate dynamic APY for HBAR based on live reserve data
+ * Formula: APY = Liquidity Rate / 1e27 * 100
+ */
+function calculateAPY(reserveData: any): string {
+  if (!reserveData || !reserveData.liquidityRate) return "0.00%";
+  const rate = Number(reserveData.liquidityRate) / 1e27;
+  return (rate * 100).toFixed(2) + "%";
+}
 
 // ─── Vault position ────────────────────────────────────────────────────────────
 export async function getVaultPosition(
@@ -25,7 +36,11 @@ export async function getVaultPosition(
   }
 
   try {
-    const data = await getUserAccountData(accountId);
+    const [data, reserveData] = await Promise.all([
+      getUserAccountData(accountId),
+      getReserveData("0x0000000000000000000000000000000000000000") // HBAR reserve (global APY)
+    ]);
+
     if (!data) throw new Error("Could not retrieve user account data from Bonzo");
 
     const healthFactor =
@@ -38,7 +53,7 @@ export async function getVaultPosition(
       deposited: (Number(data.totalCollateralETH) / 1e18).toFixed(4),
       borrowed: (Number(data.totalDebtETH) / 1e18).toFixed(4),
       healthFactor,
-      apy: "94.15%",
+      apy: calculateAPY(reserveData),
       rewards: (Number(data.availableBorrowsETH) / 1e18).toFixed(4),
     };
   } catch (err) {
@@ -51,51 +66,66 @@ export async function getVaultPosition(
 export function determineKeeperAction(
   threat: ThreatAnalysis,
   volatility: VolatilityResult,
-  price: number
+  price: number,
+  vaultPos?: VaultPosition | null
 ): KeeperAction {
-  if (threat.level === "CRITICAL" || threat.score > 0.85)
+  // 1. Critical Liquidation Protection
+  if (vaultPos && vaultPos.healthFactor !== "∞") {
+    const hf = parseFloat(vaultPos.healthFactor);
+    if (hf < 1.1) {
+      return {
+        type: "REPAY",
+        reason: `CRITICAL: Health factor ${hf.toFixed(2)} is dangerously low (below 1.1). Repaying debt to avoid liquidation.`,
+        params: { amount: parseFloat(vaultPos.borrowed) * 0.5 }
+      };
+    }
+  }
+
+  // 2. High Risk - Major Protection
+  if (threat.level === "CRITICAL" || threat.score > 0.85) {
     return {
       type: "PROTECT",
-      reason:
-        `CRITICAL threat (score: ${threat.score.toFixed(2)}). ` +
-        `${threat.summary}. Withdrawing to safety.`,
+      reason: `CRITICAL threat (score: ${threat.score.toFixed(2)}). ${threat.summary}. Withdrawing to safety.`,
     };
-  if (
-    threat.level === "HIGH" ||
-    (threat.score > THREAT_THRESHOLD && volatility.isHigh)
-  )
+  }
+
+  // 3. Elevated Risk - Range Adjustment
+  if (threat.level === "HIGH" || (threat.score > THREAT_THRESHOLD && volatility.isHigh)) {
     return {
       type: "WIDEN",
-      reason:
-        `High threat (${threat.score.toFixed(2)}) with ` +
-        `${volatility.level} volatility. Widening ranges.`,
+      reason: `High threat (${threat.score.toFixed(2)}) with ${volatility.level} volatility. Widening ranges.`,
     };
-  if (threat.sentiment === "BEARISH" && threat.score > 0.4)
+  }
+
+  // 4. Stable Bearish - Reward Collection
+  if (threat.sentiment === "BEARISH" && threat.score > 0.4) {
     return {
       type: "HARVEST",
-      reason:
-        `Bearish sentiment with elevated threat (${threat.score.toFixed(2)}). ` +
-        `Harvesting rewards now.`,
+      reason: `Bearish sentiment with elevated threat (${threat.score.toFixed(2)}). Harvesting rewards now.`,
     };
-  if (threat.score < 0.3 && !volatility.isHigh)
+  }
+
+  // 5. Very Safe Bullish - Active Leverage
+  if (threat.sentiment === "BULLISH" && threat.score < 0.2 && vaultPos && parseFloat(vaultPos.healthFactor) > 2.0) {
+    return {
+      type: "BORROW",
+      reason: `Very low risk (${threat.score.toFixed(2)}) and High HF (${vaultPos.healthFactor}). Borrowing 10% to leverage position.`,
+      params: { amount: parseFloat(vaultPos.deposited) * 0.1 }
+    };
+  }
+
+  // 6. Good Growth - Incremental Deposit
+  if (threat.score < 0.3 && !volatility.isHigh) {
     return {
       type: "TIGHTEN",
-      reason:
-        `Low threat (${threat.score.toFixed(2)}) and low volatility. ` +
-        `Tightening ranges for higher fees.`,
+      reason: `Low threat (${threat.score.toFixed(2)}) and low volatility. Tightening ranges for higher yield.`,
     };
-  if (threat.sentiment === "BULLISH" && threat.score < 0.4)
-    return {
-      type: "HOLD",
-      reason:
-        `Bullish sentiment, low threat (${threat.score.toFixed(2)}). ` +
-        `Accumulating rewards.`,
-    };
+  }
+
+  // 7. Neutral/Growth - No Action
   return {
     type: "HOLD",
-    reason:
-      `Moderate conditions (threat: ${threat.score.toFixed(2)}, ` +
-      `vol: ${volatility.realized.toFixed(4)}). Holding.`,
+    reason: `Moderate conditions (threat: ${threat.score.toFixed(2)}, vol: ${volatility.realized.toFixed(4)}). Holding current position.`,
   };
 }
 
@@ -125,6 +155,19 @@ export async function executeKeeperAction(
       const amountNative = currentDepositHBAR * ADJUST_FRACTION;
       const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
       return await depositHBAR(BONZO_LENDING_POOL, amountWei, accountId);
+    }
+
+    case "BORROW": {
+      const amountNative = action.params?.amount ? Number(action.params.amount) : currentDepositHBAR * 0.10;
+      const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
+      // Default to variable rate (2) and aHBAR token
+      return await borrow("0x6e96a607F2F5657b39bf58293d1A006f9415aF32", amountWei, 2, accountId);
+    }
+
+    case "REPAY": {
+      const amountNative = action.params?.amount ? Number(action.params.amount) : currentDepositHBAR * 0.10;
+      const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
+      return await repay("0x6e96a607F2F5657b39bf58293d1A006f9415aF32", amountWei, 2, accountId);
     }
 
     case "HOLD":

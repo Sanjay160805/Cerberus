@@ -8,22 +8,54 @@ const WETH_GATEWAY_ABI = [
   "function withdrawETH(address lendingPool, uint256 amount, address to) external",
 ];
 
-// Convert Hedera account ID (0.0.X) to EVM address via mirror node
+/**
+ * Convert Hedera account ID (0.0.X) to EVM address via Hedera Mirror Node
+ * NO FALLBACK - throws error if conversion fails
+ */
 async function toEvmAddress(accountId: string): Promise<string> {
-  if (!accountId || accountId.startsWith("0x")) return accountId;
-  try {
-    const res = await fetch(
-      `https://testnet.mirrornode.hedera.com/api/v1/accounts/${accountId}`
-    );
-    const data = await res.json();
-    if (data?.evm_address) {
-      const addr = data.evm_address;
-      return addr.startsWith("0x") ? addr : "0x" + addr;
-    }
-  } catch {}
-  // Fallback: derive EVM address from numeric account ID
-  const num = parseInt(accountId.split(".")[2] ?? "0");
-  return "0x" + num.toString(16).padStart(40, "0");
+  if (!accountId) {
+    throw new Error("Account ID is required");
+  }
+  if (accountId.startsWith("0x")) {
+    return accountId; // Already EVM format
+  }
+
+  // Parse account ID format: shard.realm.num
+  const segments = String(accountId).split(".");
+  if (segments.length !== 3) {
+    throw new Error(`Invalid Hedera account format: ${accountId}. Expected format: shard.realm.num`);
+  }
+
+  const shard = segments[0];
+  const realm = segments[1];
+  const num = segments[2];
+
+  // Validate numeric values
+  if (!/^\d+$/.test(shard) || !/^\d+$/.test(realm) || !/^\d+$/.test(num)) {
+    throw new Error(`Invalid account ID components: shard=${shard}, realm=${realm}, num=${num}`);
+  }
+
+  logger.info(`Converting Hedera account ${accountId} to EVM address`);
+
+  const url = `https://testnet.mirrornode.hedera.com/api/v1/accounts/${shard}.${realm}.${num}`;
+  const res = await fetch(url);
+  
+  if (!res.ok) {
+    throw new Error(`Mirror Node error (${res.status}): Failed to resolve account ${accountId}`);
+  }
+
+  const data = await res.json() as { evm_address?: string };
+  if (!data?.evm_address) {
+    throw new Error(`Mirror Node returned no EVM address for account ${accountId}`);
+  }
+
+  const addr = String(data.evm_address).trim().replace(/"/g, "");
+  if (!addr.startsWith("0x")) {
+    throw new Error(`Invalid EVM address from Mirror Node: ${addr}`);
+  }
+
+  logger.info(`Successfully converted ${accountId} to ${addr}`);
+  return addr;
 }
 
 function getWETHGateway(): ethers.Contract {
@@ -33,69 +65,71 @@ function getWETHGateway(): ethers.Contract {
 export async function depositHBAR(
   lendingPool: string,
   amount: bigint,
-  onBehalfOf?: string // Hedera account ID or EVM address
-): Promise<string | null> {
-  try {
-    const signer = getSigner();
+  onBehalfOf?: string
+): Promise<string> {
+  const maxRetries = 3;
+  let lastError: any;
 
-    // Resolve onBehalfOf to EVM address (use signer if not provided)
-    const recipient = onBehalfOf
-      ? await toEvmAddress(onBehalfOf)
-      : signer.address;
-
-    logger.info(`Depositing ${ethers.formatEther(amount)} HBAR on behalf of ${recipient}`);
-
-    const gateway = getWETHGateway();
-
-    // Estimate gas first to catch revert early with a clear message
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await gateway.depositETH.estimateGas(lendingPool, recipient, 0, {
-        value: amount,
-      });
-    } catch (estimateError: any) {
-      // aToken not associated — this is the most common Hedera testnet issue
-      logger.error(
-        "Gas estimate failed — recipient account likely not associated with aWHBAR token on Hedera testnet",
-        estimateError
-      );
-      throw new Error(
-        "Deposit failed: your Hedera account must first associate with the aWHBAR token. " +
-        "Open HashPack → go to the Bonzo Finance testnet app → make a small deposit there first to auto-associate, then retry here."
-      );
-    }
+      const signer = getSigner();
+      const recipient = onBehalfOf ? await toEvmAddress(onBehalfOf) : signer.address;
 
-    const tx = await gateway.depositETH(lendingPool, recipient, 0, {
-      value: amount,
-      gasLimit: 300000,
-    });
-    await tx.wait();
-    logger.info(`Deposit successful — tx: ${tx.hash}`);
-    return tx.hash;
-  } catch (error: any) {
-    logger.error("HBAR deposit failed", error);
-    throw error; // re-throw so route.ts can return the real message to the UI
+      logger.info(`[Attempt ${attempt}/${maxRetries}] Depositing ${ethers.formatEther(amount)} HBAR to Bonzo Lend (recipient: ${recipient})`);
+
+      const gateway = getWETHGateway();
+
+      // Execute deposit
+      const tx = await gateway.depositETH(lendingPool, recipient, 0, {
+        value: amount,
+        gasLimit: 350000,
+      });
+      logger.info(`HBAR deposit tx submitted: ${tx.hash}`);
+
+      const receipt = await tx.wait();
+      if (!receipt) throw new Error("HBAR deposit failed to complete");
+
+      logger.info(`HBAR deposit confirmed: ${tx.hash}`);
+      return tx.hash;
+    } catch (error: any) {
+      lastError = error;
+      logger.error(`Deposit attempt ${attempt} failed: ${error.message}`);
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
+  throw lastError;
 }
 
+/**
+ * Withdraw HBAR from Bonzo Lend via WETH Gateway
+ * NO FALLBACK - throws if transaction fails
+ * @param lendingPool Address of lending pool contract
+ * @param amount Amount of HBAR to withdraw (in wei)
+ * @param to Optional Hedera account to withdraw to
+ */
 export async function withdrawHBAR(
   lendingPool: string,
   amount: bigint,
-  to?: string // Hedera account ID or EVM address
-): Promise<string | null> {
-  try {
-    const signer = getSigner();
-    const recipient = to ? await toEvmAddress(to) : signer.address;
+  to?: string
+): Promise<string> {
+  const signer = getSigner();
+  const recipient = to ? await toEvmAddress(to) : signer.address;
 
-    logger.info(`Withdrawing ${ethers.formatEther(amount)} HBAR to ${recipient}`);
+  logger.info(`Withdrawing ${ethers.formatEther(amount)} HBAR from Bonzo Lend (recipient: ${recipient})`);
 
-    const tx = await getWETHGateway().withdrawETH(lendingPool, amount, recipient, {
-      gasLimit: 300000,
-    });
-    await tx.wait();
-    logger.info(`Withdraw successful — tx: ${tx.hash}`);
-    return tx.hash;
-  } catch (error: any) {
-    logger.error("HBAR withdraw failed", error);
-    throw error;
+  const tx = await getWETHGateway().withdrawETH(lendingPool, amount, recipient, {
+    gasLimit: 300000,
+  });
+  logger.info(`HBAR withdraw tx submitted: ${tx.hash}`);
+
+  const receipt = await tx.wait();
+  if (!receipt) {
+    throw new Error(`HBAR withdraw transaction ${tx.hash} failed to complete`);
   }
+
+  logger.info(`HBAR withdraw confirmed: ${tx.hash}`);
+  return tx.hash;
 }
