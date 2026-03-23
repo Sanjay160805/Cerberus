@@ -29,8 +29,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [availableExtensions, setAvailableExtensions] = useState<{ id: string; name?: string; icon?: string }[]>([]);
-
+  const [availableExtensions, setAvailableExtensions] = useState<{ id: string; name?: string; icon?: string }[]>([]);  const [sdkReady, setSdkReady] = useState(false);
   // Hold the DAppConnector instance
   const connectorRef = useRef<any>(null);
 
@@ -70,6 +69,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connectorRef.current = connector;
 
         if (cancelled) return;
+        
+        setSdkReady(true);
 
         // Restore any existing session
         const sessions = connector.walletConnectClient?.session?.getAll?.() ?? [];
@@ -112,7 +113,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setConnecting(true);
     try {
       const connector = connectorRef.current;
-      if (!connector) throw new Error("SDK not initialised");
+      if (!connector || !sdkReady) {
+        throw new Error("SDK not initialised. Please wait...");
+      }
 
       let session: any;
 
@@ -148,7 +151,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setConnecting(false);
     }
-  }, [availableExtensions]);
+  }, [availableExtensions, sdkReady]);
 
   // ── Disconnect ─────────────────────────────────────────────────────────────
   const disconnect = useCallback(async () => {
@@ -176,7 +179,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider value={{
       connected, accountId, connecting, availableExtensions, connect, disconnect,
     }}>
-      {children}
+      {sdkReady ? children : <div style={{ padding: "1rem", textAlign: "center", color: "var(--text-secondary)" }}>Initializing wallet SDK...</div>}
     </WalletContext.Provider>
   );
 }
