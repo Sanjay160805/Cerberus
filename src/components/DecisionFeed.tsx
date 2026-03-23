@@ -19,8 +19,8 @@ interface Decision {
 }
 
 const DOT_COLORS: Record<string, string> = {
-  TIGHTEN: "#7c3aed", PROTECT: "#ef4444", HARVEST: "#f59e0b",
-  HOLD: "#3b82f6", WIDEN: "#10b981",
+  TIGHTEN: "var(--purple)", PROTECT: "var(--accent)", HARVEST: "var(--yellow)",
+  HOLD: "var(--blue)", WIDEN: "var(--mint)",
 };
 
 const HCS_TOPIC_ID = process.env.NEXT_PUBLIC_HCS_TOPIC_ID ?? "0.0.8314584";
@@ -62,104 +62,115 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
 
   return (
     <div className="card">
-      <div className="card-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2">
+      <div className="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
         Decision Log
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {source === "hcs" && (
             <span className="badge" style={{
-              fontSize: "0.6rem", padding: "0.1rem 0.4rem",
-              background: "#d1fae5", color: "#065f46",
+              background: "var(--mint)", color: "black",
             }}>
-              ⛓ Hedera HCS
+              ⛓ HCS
             </span>
           )}
           {(source === "sqlite" || source === "sqlite-fallback") && (
             <span className="badge" style={{
-              fontSize: "0.6rem", padding: "0.1rem 0.4rem",
-              background: "#f3f4f6", color: "#6b7280",
+              background: "var(--surface)", color: "var(--text-primary)",
             }}>
-              Local DB
+              DB
             </span>
           )}
-          <span className="mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-            {decisions.length} entries
+          <span className="mono" style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700 }}>
+            {decisions.length}
           </span>
         </div>
       </div>
 
       <div className="timeline" style={{
-        maxHeight: expanded ? "none" : 280,
+        maxHeight: expanded ? "none" : 320,
         overflowY: "auto",
+        borderLeft: "var(--border-width) solid var(--text-primary)",
+        marginLeft: "0.5rem",
+        paddingLeft: "1.5rem",
       }}>
         {loading ? (
-          <p style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-            Loading from Hedera...
-          </p>
+          <div style={{ padding: "1rem", border: "2px solid var(--border)", background: "var(--surface)", fontWeight: 700, textTransform: "uppercase" }}>
+            LOADING FROM HEDERA...
+          </div>
         ) : decisions.length === 0 ? (
-          <div>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-              {accountId
-                ? `No decisions yet for ${accountId}. Run a cycle.`
-                : "Connect wallet to see your decisions, or run a cycle."}
-            </p>
+          <div style={{ padding: "1.5rem", border: "2px dashed var(--border)", background: "var(--surface)", textAlign: "center", fontWeight: 700, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+            {accountId
+              ? `NO DECISIONS FOR ${accountId}. RUN CYCLE.`
+              : "CONNECT WALLET TO SEE DECISIONS."}
           </div>
         ) : decisions.map((d, i) => (
           <div 
             key={d.id ?? i} 
             className="timeline-item"
             onClick={() => setSelectedDecision(d)}
-            style={{ cursor: "pointer", transition: "all 0.2s", padding: "0.5rem", borderRadius: "8px" }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--surface-hover)"}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+            style={{ 
+              cursor: "pointer", 
+              transition: "transform 0.1s, box-shadow 0.1s", 
+              padding: "1rem", 
+              border: "2px solid var(--border)",
+              background: "var(--bg)",
+              marginBottom: "1rem",
+              position: "relative",
+              boxShadow: "2px 2px 0px var(--border)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translate(-2px, -2px)";
+              e.currentTarget.style.boxShadow = "4px 4px 0px var(--border)";
+            }}
+            onMouseLeave={(e) => {
+               e.currentTarget.style.transform = "none";
+               e.currentTarget.style.boxShadow = "2px 2px 0px var(--border)";
+            }}
           >
-            <span
-              className="timeline-dot"
+            <div
               style={{
-                color: DOT_COLORS[d.action] ?? "#6b7280",
-                background: DOT_COLORS[d.action] ?? "#6b7280",
+                position: "absolute",
+                left: "-1.5rem",
+                top: "1.5rem",
+                width: "2rem",
+                height: "4px",
+                background: "var(--text-primary)"
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.2rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
               <span className={`badge badge-${d.action?.toLowerCase()}`}>
                 {d.action}
               </span>
               {d.sequence && (
-                <span className="mono" style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>
+                <span className="mono" style={{ fontSize: "0.75rem", color: "var(--text-primary)", fontWeight: 700 }}>
                   #{d.sequence}
                 </span>
               )}
               <span className="mono" style={{
-                fontSize: "0.66rem", color: "var(--text-muted)", marginLeft: "auto",
+                fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: "auto", fontWeight: 600
               }}>
                 {fmt(d.timestamp)}
               </span>
             </div>
-            <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-primary)", lineHeight: 1.5, fontWeight: 500, margin: "0.5rem 0" }}>
               {(d.reasoning || d.reason || "").slice(0, 120)}
               {(d.reasoning || d.reason || "").length > 120 ? "..." : ""}
             </p>
-            <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.2rem", alignItems: "center" }}>
-              <span className="mono" style={{ fontSize: "0.66rem", color: "var(--text-muted)" }}>
-                Threat: {Math.round((d.threatScore ?? d.threat_score ?? 0) * 100)}%
+            <div style={{ display: "flex", gap: "1rem", marginTop: "1rem", alignItems: "center", borderTop: "2px solid var(--border)", paddingTop: "0.75rem" }}>
+              <span className="mono" style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700 }}>
+                THREAT: <span style={{ background: "var(--yellow)", padding: "0 4px", border: "1px solid black" }}>{Math.round((d.threatScore ?? d.threat_score ?? 0) * 100)}%</span>
               </span>
-              <span className="mono" style={{ fontSize: "0.66rem", color: "var(--text-muted)" }}>
-                ${(d.price ?? 0).toFixed(4)}
+              <span className="mono" style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700 }}>
+                PRICE: ${(d.price ?? 0).toFixed(4)}
               </span>
               {d.fromHCS && (
-                <span style={{ fontSize: "0.6rem", color: "#10b981", marginLeft: "auto" }}>
-                  ✓ on-chain
+                <span style={{ fontSize: "0.7rem", color: "black", background: "var(--mint)", padding: "2px 6px", border: "1px solid black", fontWeight: 700, marginLeft: "auto" }}>
+                  ON-CHAIN
                 </span>
               )}
-              <span style={{
-                fontSize: "0.66rem", color: "var(--accent)",
-                marginLeft: "auto", fontWeight: 600,
-              }}>
-                View →
-              </span>
             </div>
           </div>
         ))}
@@ -167,23 +178,23 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
 
       {source === "hcs" && (
         <div style={{
-          marginTop: "0.75rem", padding: "0.5rem 0.75rem",
-          background: "#f0fdf4", borderRadius: 8,
-          border: "1px solid #bbf7d0",
+          marginTop: "1.5rem", padding: "0.75rem 1rem",
+          background: "var(--mint)", border: "2px solid var(--border)",
           display: "flex", alignItems: "center", gap: "0.5rem",
+          boxShadow: "2px 2px 0px var(--border)"
         }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
           </svg>
-          <span style={{ fontSize: "0.7rem", color: "#166534" }}>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700, textTransform: "uppercase" }}>
             Live from Hedera HCS ·{" "}
             <a
               href={`https://hashscan.io/testnet/topic/${HCS_TOPIC_ID}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: "#059669", fontWeight: 600 }}
+              style={{ color: "var(--text-primary)", fontWeight: 900, textDecoration: "underline" }}
             >
-              View on HashScan ↗
+              HashScan ↗
             </a>
           </span>
         </div>

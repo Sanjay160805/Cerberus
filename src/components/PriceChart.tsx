@@ -33,50 +33,52 @@ export default function PriceChart() {
     return () => clearInterval(t);
   }, []);
 
-  const srcLabel: Record<string, string> = { supra: "Supra", rest_api: "Supra REST", coingecko: "CoinGecko", mock: "Mock" };
-  const srcColor: Record<string, string> = { supra: "#6d28d9", rest_api: "#6d28d9", coingecko: "#065f46", mock: "#6b7280" };
-  const srcBg: Record<string, string>    = { supra: "#ede9fe", rest_api: "#ede9fe", coingecko: "#d1fae5", mock: "#f3f4f6" };
+  const srcLabel: Record<string, string> = { supra: "SUPRA", rest_api: "REST API", coingecko: "COINGECKO", mock: "MOCK" };
+  const srcColor: Record<string, string> = { supra: "var(--text-primary)", rest_api: "var(--text-primary)", coingecko: "var(--text-primary)", mock: "var(--text-primary)" };
+  const srcBg: Record<string, string>    = { supra: "var(--purple)", rest_api: "var(--purple)", coingecko: "var(--mint)", mock: "var(--surface)" };
 
   return (
     <div className="card">
-      <div className="card-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2">
+      <div className="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
         </svg>
         Price Feed
-        <span className="badge" style={{ marginLeft: "auto", background: srcBg[source] ?? "#f3f4f6", color: srcColor[source] ?? "#6b7280" }}>
-          {srcLabel[source] ?? source}
+        <span className="badge" style={{ marginLeft: "auto", background: srcBg[source] ?? "var(--surface)", color: srcColor[source] ?? "var(--text-primary)" }}>
+          {srcLabel[source] ?? source.toUpperCase()}
         </span>
       </div>
 
       {loading ? (
-        <div style={{ height: 100, background: "#f3f4f6", borderRadius: 8, animation: "shimmer 1.5s infinite" }} />
+        <div style={{ height: 100, background: "var(--surface-hover)", border: "2px solid var(--border)", animation: "shimmer 1.5s infinite" }} />
       ) : (
         <>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem", marginBottom: "0.2rem" }}>
-            <span className="mono" style={{ fontSize: "1.8rem", fontWeight: 700, letterSpacing: "-0.03em" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "1rem", marginBottom: "0.5rem" }}>
+            <span className="mono" style={{ fontSize: "2rem", fontWeight: 700, letterSpacing: "-0.05em", color: "var(--text-primary)", textShadow: "2px 2px 0px var(--yellow)" }}>
               ${price.toFixed(6)}
             </span>
-            <span className="mono" style={{ fontSize: "0.8rem", fontWeight: 600, color: change >= 0 ? "#10b981" : "#ef4444" }}>
+            <span className="mono" style={{ fontSize: "0.9rem", fontWeight: 700, background: change >= 0 ? "var(--mint)" : "var(--accent)", color: change >= 0 ? "black" : "white", padding: "0 6px", border: "2px solid var(--border)" }}>
               {change >= 0 ? "+" : ""}{change.toFixed(2)}%
             </span>
           </div>
-          <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginBottom: "1rem" }}>HBAR / USDT</div>
+          <div className="mono" style={{ fontSize: "0.8rem", color: "var(--text-primary)", marginBottom: "1.5rem", fontWeight: 700 }}>HBAR / USDT</div>
 
           {history.length > 1 ? (
-            <ResponsiveContainer width="100%" height={80}>
+            <ResponsiveContainer width="100%" height={100}>
               <LineChart data={history}>
                 <YAxis domain={["dataMin", "dataMax"]} hide />
                 <Tooltip
-                  contentStyle={{ background: "white", border: "1px solid #e8eaf0", borderRadius: 8, fontSize: "0.72rem" }}
+                  contentStyle={{ background: "var(--surface)", border: "3px solid var(--border)", borderRadius: 0, fontSize: "0.8rem", fontFamily: "var(--font-mono)", fontWeight: 700, boxShadow: "4px 4px 0px var(--border)", padding: "0.5rem" }}
+                  itemStyle={{ color: "var(--text-primary)" }}
                   formatter={(v) => [`$${Number(v).toFixed(6)}`, "HBAR"]}
+                  labelStyle={{ display: "none" }}
                 />
-                <Line type="monotone" dataKey="v" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                <Line type="stepAfter" dataKey="v" stroke="var(--text-primary)" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: "var(--yellow)", stroke: "var(--border)", strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "0.75rem", background: "#f8f9ff", borderRadius: 8 }}>
-              Collecting price history...
+            <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)", fontSize: "0.85rem", background: "var(--surface)", border: "2px dashed var(--border)", fontWeight: 700, textTransform: "uppercase" }}>
+              Collecting feed...
             </div>
           )}
         </>

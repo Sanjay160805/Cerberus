@@ -38,41 +38,43 @@ export default function ThreatMeter() {
   }, []);
 
   const pct = Math.round(score * 100);
-  const levelColor: Record<string, string> = { LOW: "#10b981", MEDIUM: "#f59e0b", HIGH: "#ef4444", CRITICAL: "#9d174d" };
-  const color = levelColor[level] ?? "#10b981";
+  const levelColor: Record<string, string> = { LOW: "var(--mint)", MEDIUM: "var(--yellow)", HIGH: "var(--accent-hover)", CRITICAL: "var(--text-primary)" };
+  const color = levelColor[level] ?? "var(--mint)";
 
   return (
     <div className="card">
-      <div className="card-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+      <div className="card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
         Threat Level
         {!loading && (
-          <span className="badge" style={{ marginLeft: "auto", background: color + "22", color }}>{level}</span>
+          <span className="badge" style={{ marginLeft: "auto", background: color, color: level === "CRITICAL" ? "white" : "black" }}>
+            {level}
+          </span>
         )}
       </div>
 
       {loading ? (
-        <div style={{ height: 80, background: "#f3f4f6", borderRadius: 8, animation: "shimmer 1.5s infinite" }} />
+        <div style={{ height: 80, background: "var(--surface-hover)", border: "2px solid var(--border)", animation: "shimmer 1.5s infinite" }} />
       ) : (
         <>
-          <div className="mono" style={{ fontSize: "2.8rem", fontWeight: 700, color, lineHeight: 1, marginBottom: "0.5rem" }}>
+          <div className="mono" style={{ fontSize: "3rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1, marginBottom: "0.5rem", textShadow: `2px 2px 0px ${color}` }}>
             {pct}%
           </div>
           <div className="threat-bar-track">
-            <div className="threat-bar-fill" style={{ width: `${pct}%` }} />
+            <div className="threat-bar-fill" style={{ width: `${pct}%`, background: color }} />
           </div>
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem", marginBottom: "0.75rem", fontWeight: 600 }}>
-            Hedera Chain Threat Ratio: <span style={{ color: color, fontWeight: 700 }}>{threatRatio}</span>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-primary)", marginTop: "1rem", marginBottom: "1rem", fontWeight: 700, textTransform: "uppercase" }}>
+            Hedera Chain Threat Ratio: <span style={{ color: "var(--text-primary)", background: "var(--yellow)", padding: "0 4px", border: "2px solid black" }}>{threatRatio}</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.5rem 0" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Last action:</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", margin: "1rem 0 0.5rem" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700, textTransform: "uppercase" }}>Last action:</span>
             <span className={`badge badge-${action.toLowerCase()}`}>{action}</span>
           </div>
           {reason && (
-            <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.6, borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.6, borderTop: "var(--border-width) dashed var(--border)", paddingTop: "1rem" }}>
               {reason}
             </p>
           )}

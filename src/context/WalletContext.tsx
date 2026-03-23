@@ -1,14 +1,14 @@
 "use client";
 import {
   createContext, useContext, useState,
-  useCallback, useEffect, useRef, ReactNode,
+  useCallback, useEffect, ReactNode, useRef
 } from "react";
+import { HashConnect, HashConnectTypes, MessageTypes } from "@hashgraph/hashconnect";
 
-const APP_METADATA = {
+const APP_METADATA: HashConnectTypes.AppMetadata = {
   name: "Sentinel",
   description: "Intelligent Keeper Agent on Hedera",
-  icons: ["https://sentinel-one-teal.vercel.app/favicon.ico"],
-  url: "https://sentinel-one-teal.vercel.app",
+  icon: "https://sentinel-one-teal.vercel.app/favicon.ico",
 };
 
 interface WalletState {
@@ -28,67 +28,135 @@ const WalletContext = createContext<WalletState>({
 });
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [connected, setConnected]   = useState(false);
-  const [accountId, setAccountId]   = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [showModal, setShowModal]   = useState(false);
-  const [inputValue, setInputValue] = useState("");
-  const [inputError, setInputError] = useState("");
-  const [hcChecking, setHcChecking] = useState(false);
+  
+  const hcRef = useRef<HashConnect | null>(null);
+  const initDataRef = useRef<HashConnectTypes.InitilizationData | null>(null);
 
-  // Restore session on mount — sanitize stored value
   useEffect(() => {
-    const saved = sessionStorage.getItem("sentinel-wallet");
-    if (saved) {
-      const clean = saved.replace(/[^0-9.]/g, "");
-      if (/^0\.0\.\d+$/.test(clean)) {
-        setAccountId(clean);
-        setConnected(true);
-      } else {
-        sessionStorage.removeItem("sentinel-wallet");
+    let isMounted = true;
+    
+    const initHashConnect = async () => {
+      try {
+        const hashconnect = new HashConnect();
+        hcRef.current = hashconnect;
+        
+        // Listen to pairing events
+        const onPairing = (pairingData: MessageTypes.ApprovePairing) => {
+          if (pairingData.accountIds && pairingData.accountIds.length > 0) {
+            setAccountId(pairingData.accountIds[0]);
+            setConnected(true);
+            setConnecting(false);
+            sessionStorage.setItem("sentinel-wallet", pairingData.accountIds[0]);
+          }
+        };
+        hashconnect.pairingEvent.on(onPairing);
+        (hcRef.current as any)._onPairing = onPairing;
+
+        // Verify if there's corrupted data
+        try {
+          const storedData = localStorage.getItem("hashconnectData");
+          if (storedData && storedData.includes("undefined")) {
+            localStorage.removeItem("hashconnectData");
+          }
+        } catch (e) {}
+
+        const initData = await hashconnect.init(APP_METADATA, "testnet", false);
+        if (!isMounted) return;
+        initDataRef.current = initData;
+
+        // Restore session if available
+        if (initData.savedPairings && initData.savedPairings.length > 0) {
+          const savedAccountId = initData.savedPairings[0].accountIds[0];
+          setAccountId(savedAccountId);
+          setConnected(true);
+          sessionStorage.setItem("sentinel-wallet", savedAccountId);
+        } else {
+          const localSaved = sessionStorage.getItem("sentinel-wallet");
+          if (localSaved) {
+            setAccountId(localSaved);
+            setConnected(true);
+          } else {
+            // Force hashconnect to clean up if no session exists, mitigating the decryption error
+            try {
+              (hashconnect as any).clearConnectionsAndData?.();
+            } catch (e) {}
+          }
+        }
+      } catch (error) {
+        console.error("Failed to initialize HashConnect:", error);
+        // Fallback for decryption error: wipe corrupted state
+        localStorage.removeItem("hashconnectData");
       }
-    }
+    };
+
+    initHashConnect();
+
+    return () => {
+      isMounted = false;
+      if (hcRef.current && (hcRef.current as any)._onPairing) {
+        hcRef.current.pairingEvent.off((hcRef.current as any)._onPairing);
+      }
+    };
   }, []);
 
   const connect = useCallback(async () => {
-    setShowModal(true);
-    setInputValue("");
-    setInputError("");
-  }, []);
-
-  // HashPack button — opens extension, falls back to manual
-  const connectWithHashPack = useCallback(async () => {
-    setHcChecking(true);
-    setInputError("");
+    setConnecting(true);
     try {
-      window.open("https://www.hashpack.app", "_blank");
-      setTimeout(() => {
-        setInputError("Copy your account ID from HashPack and enter it below.");
-        setHcChecking(false);
-      }, 1500);
-    } catch {
-      setHcChecking(false);
+      if (hcRef.current) {
+        // If initData is missing (due to a previous wipe), re-initialize
+        if (!initDataRef.current) {
+          initDataRef.current = await hcRef.current.init(APP_METADATA, "testnet", false);
+        }
+        
+        hcRef.current.connectToLocalWallet();
+      } else {
+        console.error("HashConnect not initialized");
+        setConnecting(false);
+      }
+    } catch (error) {
+      console.error("Connection failed:", error);
+      // Attempt to clean corrupted data and try again
+      localStorage.removeItem("hashconnectData");
+      sessionStorage.removeItem("sentinel-wallet");
+      setConnecting(false);
     }
-  }, []);
-
-  // Manual input — sanitize before saving
-  const confirmConnect = useCallback(() => {
-    const id = inputValue.trim().replace(/[^0-9.]/g, "");
-    if (!/^0\.0\.\d+$/.test(id)) {
-      setInputError("Invalid format. Use 0.0.XXXXXX");
-      return;
-    }
-    setAccountId(id);
-    setConnected(true);
-    sessionStorage.setItem("sentinel-wallet", id);
-    setShowModal(false);
-    setInputError("");
-  }, [inputValue]);
+    
+    setTimeout(() => {
+      setConnecting((prev) => {
+        if (prev && !connected) {
+          console.warn("Connection timeout - HashPack might be blocked or waiting.");
+        }
+        return false;
+      });
+    }, 15000); 
+  }, [connected]);
 
   const disconnect = useCallback(() => {
     setConnected(false);
     setAccountId(null);
     sessionStorage.removeItem("sentinel-wallet");
+    
+    if (hcRef.current) {
+      try {
+         const hc = hcRef.current as any;
+         if (typeof hc.clearConnectionsAndData === 'function') {
+            hc.clearConnectionsAndData();
+            initDataRef.current = null;
+         } else {
+            localStorage.removeItem("hashconnectData");
+            initDataRef.current = null;
+         }
+      } catch (e) {
+        console.error("Error during HashConnect disconnect", e);
+      }
+    } else {
+      localStorage.removeItem("hashconnectData");
+    }
+    // Hard reload to completely flush hashconnect state
+    window.location.reload();
   }, []);
 
   return (
@@ -96,175 +164,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       connected, accountId, connecting, connect, disconnect,
     }}>
       {children}
-
-      {showModal && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 9999,
-          background: "rgba(0,0,0,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          backdropFilter: "blur(6px)",
-        }}>
-          <div style={{
-            background: "white", borderRadius: 20, padding: "2rem",
-            width: "100%", maxWidth: 420,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.15)",
-            border: "1px solid #e8eaf0",
-          }}>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                background: "linear-gradient(135deg, #7c3aed, #a855f7)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 4px 12px rgba(124,58,237,0.3)",
-              }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6l-8-4z"
-                    fill="white" fillOpacity="0.9"/>
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: "1rem", color: "#1a1d2e" }}>
-                  Connect to Sentinel
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "#6b7280" }}>
-                  Connect your Hedera wallet to manage your vault
-                </div>
-              </div>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  marginLeft: "auto", background: "none", border: "none",
-                  cursor: "pointer", color: "#9ca3af", fontSize: "1.2rem",
-                }}
-              >✕</button>
-            </div>
-
-            {/* HashPack button */}
-            <button
-              onClick={connectWithHashPack}
-              disabled={hcChecking}
-              style={{
-                width: "100%", padding: "0.85rem",
-                borderRadius: 12, marginBottom: "1rem",
-                border: "2px solid #e8eaf0",
-                background: "white", cursor: hcChecking ? "wait" : "pointer",
-                display: "flex", alignItems: "center", gap: "0.75rem",
-                transition: "all 0.15s",
-                fontSize: "0.9rem", fontWeight: 600, color: "#1a1d2e",
-                opacity: hcChecking ? 0.7 : 1,
-              }}
-              onMouseEnter={e => !hcChecking && (e.currentTarget.style.borderColor = "#7c3aed")}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = "#e8eaf0")}
-            >
-              <div style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: "linear-gradient(135deg, #7c3aed, #a855f7)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6l-8-4z"
-                    fill="white"/>
-                </svg>
-              </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontWeight: 700, fontSize: "0.88rem" }}>
-                  {hcChecking ? "Opening HashPack..." : "Connect with HashPack"}
-                </div>
-                <div style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 400 }}>
-                  Browser extension wallet
-                </div>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" style={{ marginLeft: "auto" }}>
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-            </button>
-
-            {/* Divider */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-              <div style={{ flex: 1, height: 1, background: "#e8eaf0" }} />
-              <span style={{ fontSize: "0.72rem", color: "#9ca3af", fontWeight: 500 }}>or enter manually</span>
-              <div style={{ flex: 1, height: 1, background: "#e8eaf0" }} />
-            </div>
-
-            {/* Manual input */}
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{
-                fontSize: "0.75rem", fontWeight: 600,
-                color: "#6b7280", display: "block", marginBottom: "0.4rem",
-              }}>
-                Hedera Account ID
-              </label>
-              <input
-                type="text"
-                placeholder="0.0.1234567"
-                value={inputValue}
-                onChange={e => { setInputValue(e.target.value); setInputError(""); }}
-                onKeyDown={e => e.key === "Enter" && confirmConnect()}
-                autoFocus
-                style={{
-                  width: "100%", padding: "0.7rem 1rem",
-                  borderRadius: 10, fontSize: "0.9rem",
-                  border: inputError ? "1.5px solid #ef4444" : "1.5px solid #e8eaf0",
-                  outline: "none",
-                  fontFamily: "JetBrains Mono, monospace",
-                  color: "#1a1d2e",
-                  transition: "border-color 0.15s",
-                  boxSizing: "border-box",
-                }}
-                onFocus={e => (e.target.style.borderColor = "#7c3aed")}
-                onBlur={e => (e.target.style.borderColor = inputError ? "#ef4444" : "#e8eaf0")}
-              />
-              {inputError && (
-                <div style={{ fontSize: "0.72rem", color: "#ef4444", marginTop: "0.35rem" }}>
-                  {inputError}
-                </div>
-              )}
-            </div>
-
-            {/* Info box */}
-            <div style={{
-              background: "#f5f3ff", borderRadius: 10,
-              border: "1px solid #ddd6fe", padding: "0.65rem 0.75rem",
-              marginBottom: "1.25rem", fontSize: "0.72rem",
-              color: "#5b21b6", lineHeight: 1.6,
-            }}>
-              Find your account ID in HashPack under <strong>Account Details</strong>. Format: <code>0.0.XXXXXX</code>
-            </div>
-
-            {/* Buttons */}
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  flex: 1, padding: "0.7rem", borderRadius: 10,
-                  border: "1.5px solid #e8eaf0", background: "white",
-                  cursor: "pointer", fontSize: "0.85rem", fontWeight: 600,
-                  color: "#6b7280",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmConnect}
-                disabled={!inputValue}
-                style={{
-                  flex: 2, padding: "0.7rem", borderRadius: 10,
-                  background: inputValue ? "#7c3aed" : "#e8eaf0",
-                  border: "none",
-                  cursor: inputValue ? "pointer" : "not-allowed",
-                  fontSize: "0.85rem", fontWeight: 600,
-                  color: inputValue ? "white" : "#9ca3af",
-                  transition: "all 0.15s",
-                }}
-              >
-                Connect Wallet →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </WalletContext.Provider>
   );
 }

@@ -105,12 +105,12 @@ export default function Dashboard() {
       <div className="main-content" style={{ marginLeft: 0, width: "100%" }}>
         <div className="topbar">
           <div>
-            <div className="topbar-title">Sentinel Dashboard</div>
-            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-              Hedera Testnet · Bonzo Finance · Real-time AI Agent
+            <div className="topbar-title">SENTINEL_DASHBOARD_</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700, textTransform: "uppercase" }}>
+              Hedera Testnet <span style={{ color: "var(--purple)" }}>·</span> Bonzo Finance <span style={{ color: "var(--mint)" }}>·</span> Real-time AI Agent
               {lastScraped && (
-                <span style={{ marginLeft: "0.75rem", color: nextUpdate <= 5 ? "#10b981" : "var(--text-muted)" }}>
-                  · Tweets updated {lastScraped} · Next in {nextUpdate}m
+                <span style={{ marginLeft: "0.75rem", background: nextUpdate <= 5 ? "var(--mint)" : "var(--surface)", border: "1px solid var(--border)", padding: "0 4px" }}>
+                  <span style={{ color: "var(--purple)" }}>·</span> TWEETS UPD: {lastScraped} <span style={{ color: "var(--purple)" }}>·</span> NEXT: {nextUpdate}m
                 </span>
               )}
             </div>
@@ -119,67 +119,56 @@ export default function Dashboard() {
             {connected && (
               <>
                 <button
-                  className={`btn ${agentRunning ? "btn-ghost" : "btn-primary"}`}
+                  className={`btn ${agentRunning ? "btn-outline" : "btn-primary"}`}
                   onClick={handleStartStop}
+                  style={agentRunning ? { background: "var(--surface)", color: "var(--text-primary)" } : {}}
                 >
-                  {agentRunning ? "Stop Agent" : "Start Agent"}
+                  {agentRunning ? "STOP AGENT" : "START AGENT"}
                 </button>
                 <button
                   className="btn btn-outline"
                   onClick={handleRunCycle}
                   disabled={cycleRunning}
+                  style={{ background: "var(--yellow)" }}
                 >
                   {cycleRunning ? (
                     <>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2"
+                        stroke="currentColor" strokeWidth="3"
                         style={{ animation: "spin 1s linear infinite" }}>
                         <path d="M21 12a9 9 0 11-6.219-8.56"/>
                       </svg>
-                      Running...
+                      RUNNING...
                     </>
-                  ) : "⚡ Run Cycle"}
+                  ) : "⚡ RUN CYCLE"}
                 </button>
               </>
             )}
             {!connected && (
               <div style={{
-                fontSize: "0.75rem", color: "var(--text-muted)",
+                fontSize: "0.8rem", color: "var(--text-primary)",
                 padding: "0.4rem 0.75rem",
-                background: "var(--bg)",
-                borderRadius: 8,
-                border: "1px solid var(--border)",
+                background: "var(--yellow)",
+                border: "2px solid var(--border)",
+                boxShadow: "2px 2px 0px var(--border)",
+                fontWeight: 700, textTransform: "uppercase"
               }}>
-                Connect wallet to run agent
+                CONNECT WALLET REQUIRED
               </div>
             )}
-            <button 
-              className="dark-mode-toggle"
-              onClick={() => setDarkMode(!darkMode)}
-              title="Toggle dark mode"
-            >
-              {darkMode ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-              )}
-            </button>
             <WalletConnect />
           </div>
         </div>
 
         {lastCycle && (
           <div style={{
-            background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
-            padding: "0.35rem 1.5rem", fontSize: "0.75rem", color: "#166534",
-            display: "flex", alignItems: "center", gap: "0.4rem"
+            background: "var(--mint)", borderBottom: "3px solid var(--border)",
+            padding: "0.5rem 1.5rem", fontSize: "0.85rem", color: "var(--text-primary)",
+            display: "flex", alignItems: "center", gap: "0.75rem", fontWeight: 700,
+            textTransform: "uppercase"
           }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="3">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
             Cycle completed at {lastCycle}
@@ -189,43 +178,43 @@ export default function Dashboard() {
         <div className="page-content">
           <div className="stat-row">
             <div className="stat-box">
-              <div className="stat-label">HBAR Price</div>
-              <div className="stat-value" style={{ fontSize: "1.2rem" }}>
+              <div className="stat-label">HBAR PRICE</div>
+              <div className="stat-value mono" style={{ fontSize: "1.5rem" }}>
                 {hbarPrice > 0 ? `$${hbarPrice.toFixed(4)}` : "—"}
               </div>
-              <div className="stat-delta up">Live · CoinGecko</div>
+              <div className="stat-delta up" style={{ color: "black", background: "var(--mint)", padding: "0 4px", border: "1px solid black" }}>LIVE · COINGECKO</div>
             </div>
             <div className="stat-box">
               <div className="stat-label">APY</div>
-              <div className="stat-value" style={{ fontSize: "1.2rem", color: "#10b981" }}>
+              <div className="stat-value mono" style={{ fontSize: "1.5rem", color: "var(--text-primary)", textShadow: "2px 2px 0px var(--mint)" }}>
                 94.15%
               </div>
-              <div className="stat-delta neutral">Bonzo Finance</div>
+              <div className="stat-delta neutral" style={{ background: "var(--purple)", color: "white", padding: "0 4px", border: "1px solid black" }}>BONZO FINANCE</div>
             </div>
             <div className="stat-box">
-              <div className="stat-label">Tweets Indexed</div>
-              <div className="stat-value" style={{ fontSize: "1.2rem" }}>
+              <div className="stat-label">TWEETS INDEXED</div>
+              <div className="stat-value mono" style={{ fontSize: "1.5rem" }}>
                 {tweetCount > 0 ? tweetCount.toLocaleString() : "—"}
               </div>
-              <div className="stat-delta neutral">
-                {nextUpdate > 0 ? `Next update in ${nextUpdate}m` : "Updating soon..."}
+              <div className="stat-delta neutral" style={{ background: "var(--surface)", border: "1px solid black", padding: "0 4px" }}>
+                {nextUpdate > 0 ? `NEXT: ${nextUpdate}M` : "UPDATING SOON..."}
               </div>
             </div>
             <div className="stat-box">
-              <div className="stat-label">Network</div>
-              <div className="stat-value" style={{ fontSize: "1rem", color: "#7c3aed" }}>
-                Hedera
+              <div className="stat-label">NETWORK</div>
+              <div className="stat-value mono" style={{ fontSize: "1.5rem", color: "var(--text-primary)", textShadow: "2px 2px 0px var(--yellow)" }}>
+                HEDERA
               </div>
-              <div className="stat-delta neutral">Testnet · HCS Active</div>
+              <div className="stat-delta neutral" style={{ background: "white", border: "1px solid black", padding: "0 4px", color: "black" }}>TESTNET · HCS ON</div>
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem", marginBottom: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
             <ThreatMeter />
             <PriceChart />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem", marginBottom: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
             <TweetFeed />
             <PositionCard />
           </div>
