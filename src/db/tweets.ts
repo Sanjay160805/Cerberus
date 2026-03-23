@@ -1,31 +1,46 @@
-import { getDatabase, getDatabaseAsync } from "./sqlite";
+import { logger } from "@/lib/logger";
 
-export function getTweetCount(): number {
-  const db = getDatabase();
-  if (!db) return 0;
-  const row = db.prepare("SELECT COUNT(*) as count FROM tweets").get() as { count: number };
-  return row?.count ?? 0;
+const SCRAPER_API_URL = "https://x-scrapper-wheat.vercel.app/api/results";
+
+/**
+ * PRODUCTION: Fetch latest signals directly from Vercel Scraper API.
+ * Replaces local SQLite queries for higher real-time accuracy and "REAL" implementation.
+ */
+export async function getRecentTweetsAsync(limit = 100): Promise<any[]> {
+  try {
+    logger.info(`[TweetsDB] Fetching live signals from ${SCRAPER_API_URL}`);
+    const res = await fetch(SCRAPER_API_URL, { next: { revalidate: 30 } });
+    if (!res.ok) throw new Error(`Scraper API returned ${res.status}`);
+    const data = await res.json();
+    const raw = data.data || [];
+    
+    return raw.slice(0, limit).map((t: any, i: number) => ({
+      id: i,
+      username: t.account,
+      text: t.tweet_text,
+      time: t.tweet_time,
+      likes: t.likes || 0,
+      retweets: t.retweets || 0,
+      scraped_at: t.scraped_at || t.tweet_time,
+      is_crypto: t.importance_score > 0.5 ? 1 : 0
+    }));
+  } catch (err) {
+    logger.error("[TweetsDB] Live fetch failed:", err);
+    return [];
+  }
+}
+
+// Sync fallback for components still using non-async (throws error in production to force migration)
+export function getRecentTweets(limit = 10): any[] {
+  throw new Error("Synchronous getRecentTweets is deprecated for REAL implementation. Use getRecentTweetsAsync instead.");
 }
 
 export async function getTweetCountAsync(): Promise<number> {
-  const db = await getDatabaseAsync();
-  if (!db) return 0;
-  try {
-    const row = db.prepare("SELECT COUNT(*) as count FROM tweets").get() as { count: number };
-    return row?.count ?? 0;
-  } catch { return 0; }
+    try {
+        const res = await fetch(SCRAPER_API_URL);
+        const data = await res.json();
+        return data.count || (data.data?.length ?? 0);
+    } catch { return 0; }
 }
 
-export function getRecentTweets(limit = 10): any[] {
-  const db = getDatabase();
-  if (!db) return [];
-  return db.prepare("SELECT * FROM tweets ORDER BY id DESC LIMIT ?").all(limit);
-}
-
-export async function getRecentTweetsAsync(limit = 100): Promise<any[]> {
-  const db = await getDatabaseAsync();
-  if (!db) return [];
-  try {
-    return db.prepare("SELECT * FROM tweets ORDER BY scraped_at DESC LIMIT ?").all(limit);
-  } catch { return []; }
-}
+export function getTweetCount(): number { return 0; }

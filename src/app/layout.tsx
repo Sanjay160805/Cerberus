@@ -16,8 +16,8 @@ const spaceMono = Space_Mono({
 import { WalletProvider } from "@/context/WalletContext";
 
 export const metadata: Metadata = {
-  title: "Sentinel — Intelligent Keeper Agent",
-  description: "Autonomous DeFi keeper agent on Hedera + Bonzo Finance",
+  title: "Cerberus — Intelligent Keeper Agent",
+  description: "Real-time AI-powered DeFi agent on Hedera",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

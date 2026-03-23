@@ -1,17 +1,25 @@
 import { logger } from "@/lib/logger";
 
 let db: any = null;
-let dbInitialized = false;
 
+/**
+ * PRODUCTION DATABASE: MANAGES LOCAL AUDIT LOGS FOR DECISIONS.
+ * Signal data (tweets) is now fetched from the Vercel Scraper API instead.
+ */
 function getDb() {
   if (db) return db;
   if (typeof window === "undefined") {
     try {
       const Database = require("better-sqlite3");
       const path = require("path");
-      const dbPath = process.env.DB_PATH || path.join(process.cwd(), "crypto_tweets.db");
+      
+      // Separate the local audit database from the former signal database
+      const dbPath = process.env.DB_PATH || path.join(process.cwd(), "cerberus_audit.db");
+      
       db = new Database(dbPath);
-      logger.info(`SQLite connected: ${dbPath}`);
+      logger.info(`[Database] SQLite connected: ${dbPath}`);
+      
+      // Only keep the local decision/audit log table
       db.exec(`
         CREATE TABLE IF NOT EXISTS decisions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,19 +33,15 @@ function getDb() {
           executed INTEGER DEFAULT 0,
           tx_hash TEXT
         );
-        CREATE TABLE IF NOT EXISTS tweets (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          username TEXT,
-          text TEXT,
-          time TEXT,
-          likes INTEGER DEFAULT 0,
-          retweets INTEGER DEFAULT 0,
-          scraped_at TEXT,
-          is_crypto INTEGER DEFAULT 1
-        );
       `);
+      
+      // Cleanly remove the old signals table if it existed from previous versions
+      try {
+        db.exec("DROP TABLE IF EXISTS tweets;");
+      } catch {}
+      
     } catch (err) {
-      logger.warn("SQLite not available (serverless environment) — using empty fallback");
+      logger.error("[Database] Initialization failed:", err);
       db = null;
     }
   }
@@ -48,31 +52,11 @@ export function getDatabase() {
   return getDb();
 }
 
+/**
+ * Real implementation only: no GitHub fallbacks or mock data.
+ */
 export async function getDatabaseAsync(): Promise<any> {
-  if (db) return db;
-  if (typeof window !== "undefined") return null;
-
-  try {
-    const Database = require("better-sqlite3");
-    // Try local first
-    try {
-      const path = require("path");
-      const dbPath = process.env.DB_PATH || path.join(process.cwd(), "crypto_tweets.db");
-      db = new Database(dbPath);
-      return db;
-    } catch {
-      // Local failed — download from GitHub
-      logger.info("Local DB not found, downloading from GitHub...");
-      const { getLocalDbPath } = await import("./githubFallback");
-      const tmpPath = await getLocalDbPath();
-      db = new Database(tmpPath, { readonly: true });
-      logger.info("GitHub DB loaded successfully");
-      return db;
-    }
-  } catch (err) {
-    logger.warn("DB unavailable: " + String(err));
-    return null;
-  }
+    return getDb();
 }
 
 export function isDbAvailable(): boolean {

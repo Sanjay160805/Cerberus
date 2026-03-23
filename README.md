@@ -1,6 +1,6 @@
-# Sentinel: Intelligent Keeper Agent on Hedera
+# Cerberus: Intelligent Keeper Agent on Hedera
 
-Sentinel is a real-time, AI-driven automation agent built on the Hedera network. It monitors social sentiment (via Twitter) and market conditions to actively manage a decentralized finance (DeFi) position on Bonzo Finance. The entire application features a **Premium Retro Neobrutalist UI**, specifically designed to stand out with striking colors, sharp shadows, and arcade-style visual feedback.
+Cerberus is a real-time, AI-driven automation agent built on the Hedera network. It monitors social sentiment (via Twitter) and market conditions to actively manage a decentralized finance (DeFi) position on Bonzo Finance. The entire application features a **Premium Retro Neobrutalist UI**, specifically designed to stand out with striking colors, sharp shadows, and arcade-style visual feedback.
 
 > **Hackathon Edition**: This version utilizes a completely custom Neobrutalist design system to deliver a truly engaging, interactive, and visually striking experience. Wallet connect is fully functional natively with the HashPack browser extension.
 
@@ -32,7 +32,7 @@ Sentinel is a real-time, AI-driven automation agent built on the Hedera network.
 ### 2. Installation
 ```bash
 git clone <repository_url>
-cd sentinel
+cd cerberus
 npm install
 ```
 
@@ -58,14 +58,14 @@ Navigate to `http://localhost:3000`.
 
 ## Using the Dashboard
 
-1. **Connect Wallet**: Click the "Connect HashPack" button. Your HashPack browser extension will prompt you to pair. Once paired, Sentinel securely reads your `accountId` dynamically.
+1. **Connect Wallet**: Click the "Connect HashPack" button. Your HashPack browser extension will prompt you to pair. Once paired, Cerberus securely reads your `accountId` dynamically.
 2. **Start Agent**: Click "Start Agent" to begin the background polling process.
 3. **Run Cycle**: Click "Run Cycle" to force the agent to fetch tweets, query prices, and make an immediate AI decision.
 4. **View Decisions**: AI decisions will populate the timeline and are simultaneously logged to Hedera HCS.
 
 ## Hackathon Highlights
 
-- **Aesthetic Edge**: Sentinel abandons generic UI libraries for a fully custom, high-contrast, edge-to-edge Neobrutalism experience.
+- **Aesthetic Edge**: Cerberus abandons generic UI libraries for a fully custom, high-contrast, edge-to-edge Neobrutalism experience.
 - **Full Transparency**: Users aren't forced to trust the AI; every decision factor is surfaced on the UI, and the final action is cryptographically sealed on Hedera.
 - **Real, Not Mocked**: The wallet integration is a genuine connection via HashConnect, providing the actual Web3 user experience.
 

@@ -37,7 +37,7 @@ export async function POST() {
       };
 
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://sentinel-one-teal.vercel.app";
+        process.env.NEXT_PUBLIC_APP_URL || "https://cerberus-agent.vercel.app";
       fetch(`${appUrl}/api/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -1,5 +1,5 @@
 {
-  "name": "sentinel",
+  "name": "cerberus",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -11,11 +11,16 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@hashgraph/hashconnect": "^1.24.0",
+    "@hashgraph/hedera-wallet-connect": "^2.0.7",
     "@hashgraph/sdk": "^2.50.0",
+    "@hiero-ledger/sdk": "^2.81.0",
     "@langchain/community": "^0.3.0",
     "@langchain/core": "^0.3.0",
     "@langchain/google-genai": "^0.1.0",
     "@langchain/langgraph": "^0.2.0",
+    "@walletconnect/modal": "^2.7.0",
+    "@walletconnect/sign-client": "^2.23.8",
+    "@walletconnect/utils": "^2.23.8",
     "better-sqlite3": "^11.0.0",
     "dotenv": "^17.3.1",
     "ethers": "^6.13.0",

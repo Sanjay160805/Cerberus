@@ -88,7 +88,7 @@ export default function TweetDetailModal({ tweet, onClose }: TweetDetailModalPro
             </div>
 
             <div style={{ marginTop: "1.5rem", padding: "1rem", background: "var(--surface-hover)", borderRadius: "8px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              <strong>Note:</strong> This tweet was automatically classified and used by the Sentinel AI agent to analyze market threats and make keeper decisions.
+              <strong>Note:</strong> This tweet was automatically classified and used by the Cerberus AI agent to analyze market threats and make keeper decisions.
             </div>
           </div>
         </div>

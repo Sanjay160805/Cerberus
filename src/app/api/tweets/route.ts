@@ -1,37 +1,45 @@
-import { getLocalDbPath } from '@/db/githubFallback';
-import Database from 'better-sqlite3';
+import { logger } from "@/lib/logger";
+
+const SCRAPER_API_URL = "https://x-scrapper-wheat.vercel.app/api/results";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') ?? '10');
 
-    const dbPath = process.env.NODE_ENV === 'production'
-      ? await getLocalDbPath()
-      : 'scraper/crypto_tweets.db';
-
-    const db = new Database(dbPath, { readonly: true });
-
-    const tweets = db.prepare(
-      `SELECT * FROM tweets ORDER BY scraped_at DESC LIMIT ?`
-    ).all(limit);
-
-    const totalRow = db.prepare(
-      `SELECT COUNT(*) as count FROM tweets`
-    ).get() as { count: number };
-
-    const cryptoRow = db.prepare(
-      `SELECT COUNT(*) as count FROM tweets WHERE is_crypto = 1`
-    ).get() as { count: number };
-
-    db.close();
+    logger.info(`[TweetsAPI] Fetching real-time signals from ${SCRAPER_API_URL}`);
+    
+    // FETCH DIRECTLY FROM THE VERCEL SCRAPER API (REAL IMPLEMENTATION)
+    const res = await fetch(SCRAPER_API_URL, {
+        next: { revalidate: 30 } // Cache for 30s
+    });
+    
+    if (!res.ok) throw new Error(`Scraper API returned ${res.status}`);
+    
+    const data = await res.json();
+    const rawTweets = data.data || [];
+    
+    // Map to the internal format expected by the frontend
+    const tweets = rawTweets.slice(0, limit).map((t: any, i: number) => ({
+        id: i,
+        username: t.account,
+        text: t.tweet_text,
+        time: t.tweet_time,
+        likes: t.likes,
+        retweets: t.retweets,
+        scraped_at: t.scraped_at || t.tweet_time,
+        is_crypto: t.importance_score > 0.5 ? 1 : 0,
+        sentiment: t.sentiment
+    }));
 
     return Response.json({
       tweets,
-      total: totalRow?.count ?? 0,
-      cryptoTotal: cryptoRow?.count ?? 0,
+      total: data.count || tweets.length,
+      cryptoTotal: tweets.filter((t: any) => t.is_crypto === 1).length,
+      source: "Vercel Scraper API"
     });
   } catch (e) {
+    logger.error("[TweetsAPI] ERROR:", e);
     return Response.json({ tweets: [], total: 0, cryptoTotal: 0, error: String(e) });
   }
 }

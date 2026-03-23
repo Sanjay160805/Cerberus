@@ -4,168 +4,10 @@ import { getUserAccountData } from "./lendingPool";
 import { THREAT_THRESHOLD } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { KeeperAction } from "./types";
-import { ethers } from "ethers";
-
-// ─── Contract addresses (testnet) ─────────────────────────────────────────────
-// Used only for vault-balance tracking (tx-history fallback)
-const BONZO_CONTRACT_ID = "0.0.7154915";
+import { depositHBAR, withdrawHBAR } from "./wethGateway";
+import { BONZO_LENDING_POOL } from "@/lib/constants";
 
 const ADJUST_FRACTION = 0.20;
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-const WETH_GATEWAY_ADDRESS = "0x16197Ef10F26De77C9873d075f8774BdEc20A75d";
-const ATOKEN_ADDRESS = "0x6e96a607F2F5657b39bf58293d1A006f9415aF32";
-const LENDING_POOL_ADDRESS = "0xf67DBe9bD1B331cA379c44b5562EAa1CE831EbC2";
-const RPC_URL = "https://testnet.hashio.io/api";
-
-const WETH_GATEWAY_ABI = [
-  "function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) payable",
-  "function withdrawETH(address lendingPool, uint256 amount, address to)",
-];
-
-const ERC20_ABI = ["function approve(address spender, uint256 amount) returns (bool)"];
-
-/**
- * Get ethers wallet from private key
- */
-function getWallet(): ethers.Wallet {
-  let pk = process.env.HEDERA_PRIVATE_KEY ?? "";
-  if (!pk.startsWith("0x")) {
-    // Hedera DER key — strip 24-char header to get raw 32-byte key
-    pk = "0x" + pk.slice(24);
-  }
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  return new ethers.Wallet(pk, provider);
-}
-
-// ─── Native deposit via ethers.js ────────────────────────────────────────────
-async function depositNative(amountHbar: number): Promise<string | null> {
-  try {
-    const wallet = getWallet();
-    
-    // Check EVM wallet balance for logging
-    const balance = await wallet.provider!.getBalance(wallet.address);
-    logger.info(`💰 EVM wallet balance: ${ethers.formatEther(balance)} HBAR`);
-
-    // WETHGateway is not responding on testnet — skip deposit for now
-    // Focus on withdraw which matters for HARVEST actions
-    logger.warn(`⏭️  Deposit skipped — WETHGateway not active on testnet`);
-    logger.info(`Returning fake success txId so TIGHTEN doesn't fail`);
-    return 'deposit-skipped';
-  } catch (error: any) {
-    logger.error("Native deposit failed", error?.message ?? JSON.stringify(error));
-    return null;
-  }
-}
-
-// ─── Native withdraw via ethers.js ───────────────────────────────────────────
-async function withdrawNative(amountHbar: number): Promise<string | null> {
-  try {
-    const wallet = getWallet();
-    // Calculate amount in weibars: 1 HBAR = 1e8 tinybars = 1e18 weibars
-    const amountWei = BigInt(Math.floor(amountHbar * 1e8)) * BigInt(10000000000);
-    logger.info(`Withdrawing ${amountHbar} HBAR (${amountWei.toString()} weibars) from Bonzo`);
-
-    // Step 1: Approve aToken to be spent by WETHGateway
-    logger.info(`Approving aToken for WETHGateway: ${amountWei.toString()}`);
-    const approveIface = new ethers.Interface([
-      'function approve(address spender, uint256 amount) returns (bool)'
-    ]);
-    const approveData = approveIface.encodeFunctionData('approve', [
-      WETH_GATEWAY_ADDRESS,
-      amountWei
-    ]);
-    const approveTx = await wallet.sendTransaction({
-      to: ATOKEN_ADDRESS,
-      data: approveData,
-      gasLimit: 200000
-    });
-    await approveTx.wait();
-    logger.info(`aToken approved: ${approveTx.hash}`);
-
-    // Step 2: Call withdrawETH
-    logger.info(
-      `Calling WETHGateway.withdrawETH: lendingPool=${LENDING_POOL_ADDRESS}, amount=${amountWei}, to=${wallet.address}`
-    );
-    const withdrawIface = new ethers.Interface([
-      'function withdrawETH(address lendingPool, uint256 amount, address to)'
-    ]);
-    const withdrawData = withdrawIface.encodeFunctionData('withdrawETH', [
-      LENDING_POOL_ADDRESS,
-      amountWei,
-      wallet.address
-    ]);
-    const tx = await wallet.sendTransaction({
-      to: WETH_GATEWAY_ADDRESS,
-      data: withdrawData,
-      gasLimit: 500000
-    });
-
-    logger.info(`withdrawETH tx submitted: ${tx.hash}`);
-    const receipt = await tx.wait();
-    logger.info(`withdrawETH confirmed: ${receipt?.hash}, status: ${receipt?.status}`);
-    return receipt?.hash ?? tx.hash;
-  } catch (error: any) {
-    logger.error("Native withdraw failed", error?.message ?? JSON.stringify(error));
-    return null;
-  }
-}
-
-// ─── Mirror node balance (tx-history fallback) ────────────────────────────────
-async function getBonzoBalanceFromTransactions(
-  accountId: string
-): Promise<number> {
-  try {
-    let totalDeposited = 0;
-    let totalWithdrawn = 0;
-    let nextUrl: string | null =
-      `https://testnet.mirrornode.hedera.com/api/v1/transactions` +
-      `?account.id=${accountId}&limit=100&order=desc&transactiontype=CONTRACTCALL`;
-
-    let pages = 0;
-    while (nextUrl && pages < 5) {
-      const res = await fetch(nextUrl);
-      const data: any = await res.json();
-      const txs: any[] = data?.transactions ?? [];
-
-      for (const tx of txs) {
-        if (tx.result !== "SUCCESS") continue;
-        if (tx.name !== "CONTRACTCALL") continue;
-        if (tx.entity_id !== BONZO_CONTRACT_ID) continue;
-
-        for (const transfer of tx.transfers ?? []) {
-          if (transfer.account !== accountId) continue;
-          if (transfer.amount < 0) {
-            const netAmount =
-              Math.abs(transfer.amount) - (tx.charged_tx_fee ?? 0);
-            const hbar = netAmount / 1e8;
-            if (hbar > 0.5) totalDeposited += netAmount;
-          } else if (transfer.amount > 0) {
-            totalWithdrawn += transfer.amount;
-          }
-        }
-      }
-
-      nextUrl = data?.links?.next
-        ? `https://testnet.mirrornode.hedera.com${data.links.next}`
-        : null;
-      pages++;
-    }
-
-    const netHBAR = (totalDeposited - totalWithdrawn) / 1e8;
-    logger.info(
-      `Bonzo balance for ${accountId}: ` +
-      `deposited=${totalDeposited / 1e8} ` +
-      `withdrawn=${totalWithdrawn / 1e8} ` +
-      `net=${netHBAR}`
-    );
-    return Math.max(0, parseFloat(netHBAR.toFixed(4)));
-  } catch (err) {
-    logger.error("getBonzoBalanceFromTransactions failed", err);
-    return 0;
-  }
-}
 
 // ─── Vault position ────────────────────────────────────────────────────────────
 export async function getVaultPosition(
@@ -184,33 +26,25 @@ export async function getVaultPosition(
 
   try {
     const data = await getUserAccountData(accountId);
-    if (data && data.totalCollateralETH > 0n) {
-      const healthFactor =
-        Number(data.healthFactor) / 1e18 > 1e15
-          ? "∞"
-          : (Number(data.healthFactor) / 1e18).toFixed(2);
-      return {
-        asset: "HBAR",
-        deposited: (Number(data.totalCollateralETH) / 1e18).toFixed(4),
-        borrowed: (Number(data.totalDebtETH) / 1e18).toFixed(4),
-        healthFactor,
-        apy: "94.15%",
-        rewards: (Number(data.availableBorrowsETH) / 1e18).toFixed(4),
-      };
-    }
-  } catch (err) {
-    logger.warn("EVM contract call failed, using transaction history", err);
-  }
+    if (!data) throw new Error("Could not retrieve user account data from Bonzo");
 
-  const balance = await getBonzoBalanceFromTransactions(accountId);
-  return {
-    asset: "HBAR",
-    deposited: balance.toFixed(4),
-    borrowed: "0.0000",
-    healthFactor: "∞",
-    apy: "94.15%",
-    rewards: "0.0000",
-  };
+    const healthFactor =
+      Number(data.healthFactor) / 1e18 > 1e15
+        ? "∞"
+        : (Number(data.healthFactor) / 1e18).toFixed(2);
+    
+    return {
+      asset: "HBAR",
+      deposited: (Number(data.totalCollateralETH) / 1e18).toFixed(4),
+      borrowed: (Number(data.totalDebtETH) / 1e18).toFixed(4),
+      healthFactor,
+      apy: "94.15%",
+      rewards: (Number(data.availableBorrowsETH) / 1e18).toFixed(4),
+    };
+  } catch (err) {
+    logger.error("Real-time Bonzo position fetch failed:", err);
+    throw err; // Real implementation only, no fallbacks
+  }
 }
 
 // ─── Keeper decision ───────────────────────────────────────────────────────────
@@ -219,7 +53,6 @@ export function determineKeeperAction(
   volatility: VolatilityResult,
   price: number
 ): KeeperAction {
-
   if (threat.level === "CRITICAL" || threat.score > 0.85)
     return {
       type: "PROTECT",
@@ -269,46 +102,29 @@ export function determineKeeperAction(
 // ─── Execute action ────────────────────────────────────────────────────────────
 export async function executeKeeperAction(
   action: KeeperAction,
-  currentDepositHBAR: number = 16.0
+  currentDepositHBAR: number = 16.0,
+  accountId?: string
 ): Promise<string | null> {
   logger.info(`Executing keeper action: ${action.type}`);
 
   switch (action.type) {
     case "PROTECT": {
-      const amount = currentDepositHBAR * 0.50;
-      logger.warn(`PROTECT: withdrawing ${amount} HBAR from Bonzo`);
-      const txId = await withdrawNative(amount);
-      if (txId) {
-        logger.info(`PROTECT executed — tx: ${txId}`);
-        return txId;
-      }
-      logger.warn("PROTECT: native withdraw failed");
-      return null;
+      const amountNative = currentDepositHBAR * 0.50;
+      const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
+      return await withdrawHBAR(BONZO_LENDING_POOL, amountWei, accountId);
     }
 
     case "WIDEN":
     case "HARVEST": {
-      const amount = currentDepositHBAR * ADJUST_FRACTION;
-      logger.info(`${action.type}: withdrawing ${amount} HBAR from Bonzo`);
-      const txId = await withdrawNative(amount);
-      if (txId) {
-        logger.info(`${action.type} executed — tx: ${txId}`);
-        return txId;
-      }
-      logger.warn(`${action.type}: native withdraw failed`);
-      return null;
+      const amountNative = currentDepositHBAR * ADJUST_FRACTION;
+      const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
+      return await withdrawHBAR(BONZO_LENDING_POOL, amountWei, accountId);
     }
 
     case "TIGHTEN": {
-      const amount = currentDepositHBAR * ADJUST_FRACTION;
-      logger.info(`TIGHTEN: depositing ${amount} HBAR into Bonzo`);
-      const txId = await depositNative(amount);
-      if (txId) {
-        logger.info(`TIGHTEN executed — tx: ${txId}`);
-        return txId;
-      }
-      logger.warn("TIGHTEN: native deposit failed");
-      return null;
+      const amountNative = currentDepositHBAR * ADJUST_FRACTION;
+      const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
+      return await depositHBAR(BONZO_LENDING_POOL, amountWei, accountId);
     }
 
     case "HOLD":

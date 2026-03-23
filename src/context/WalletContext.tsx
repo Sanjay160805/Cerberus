@@ -3,19 +3,15 @@ import {
   createContext, useContext, useState,
   useCallback, useEffect, ReactNode, useRef
 } from "react";
-import { HashConnect, HashConnectTypes, MessageTypes } from "@hashgraph/hashconnect";
+import { logger } from "@/lib/logger";
 
-const APP_METADATA: HashConnectTypes.AppMetadata = {
-  name: "Sentinel",
-  description: "Intelligent Keeper Agent on Hedera",
-  icon: "https://sentinel-one-teal.vercel.app/favicon.ico",
-};
-
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface WalletState {
   connected: boolean;
   accountId: string | null;
   connecting: boolean;
-  connect: () => Promise<void>;
+  availableExtensions: { id: string; name?: string; icon?: string }[];
+  connect: (extensionId?: string) => Promise<void>;
   disconnect: () => void;
 }
 
@@ -23,145 +19,162 @@ const WalletContext = createContext<WalletState>({
   connected: false,
   accountId: null,
   connecting: false,
+  availableExtensions: [],
   connect: async () => {},
   disconnect: () => {},
 });
 
+// ─── Provider ────────────────────────────────────────────────────────────────
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  
-  const hcRef = useRef<HashConnect | null>(null);
-  const initDataRef = useRef<HashConnectTypes.InitilizationData | null>(null);
+  const [availableExtensions, setAvailableExtensions] = useState<{ id: string; name?: string; icon?: string }[]>([]);
 
+  // Hold the DAppConnector instance
+  const connectorRef = useRef<any>(null);
+
+  // ── Initialise Hedera Wallet Connect SDK once ──────────────────────────────
   useEffect(() => {
-    let isMounted = true;
-    
-    const initHashConnect = async () => {
+    let cancelled = false;
+
+    const init = async () => {
       try {
-        const hashconnect = new HashConnect();
-        hcRef.current = hashconnect;
-        
-        // Listen to pairing events
-        const onPairing = (pairingData: MessageTypes.ApprovePairing) => {
-          if (pairingData.accountIds && pairingData.accountIds.length > 0) {
-            setAccountId(pairingData.accountIds[0]);
-            setConnected(true);
-            setConnecting(false);
-            sessionStorage.setItem("sentinel-wallet", pairingData.accountIds[0]);
-          }
-        };
-        hashconnect.pairingEvent.on(onPairing);
-        (hcRef.current as any)._onPairing = onPairing;
+        // Dynamic import — keeps this SSR-safe
+        // Use specific subpaths to avoid pulling in @reown/appkit optional deps
+        const [{ DAppConnector }, { LedgerId }] = await Promise.all([
+          import("@hashgraph/hedera-wallet-connect/dist/lib/dapp/index.js"),
+          import("@hashgraph/sdk"),
+        ]);
+        const { findExtensions } = await import(
+          "@hashgraph/hedera-wallet-connect/dist/lib/shared/extensionController.js"
+        );
 
-        // Verify if there's corrupted data
-        try {
-          const storedData = localStorage.getItem("hashconnectData");
-          if (storedData && storedData.includes("undefined")) {
-            localStorage.removeItem("hashconnectData");
-          }
-        } catch (e) {}
+        const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "b68e341a84b5f4af97fa3a54c9543bfd";
 
-        const initData = await hashconnect.init(APP_METADATA, "testnet", false);
-        if (!isMounted) return;
-        initDataRef.current = initData;
+        const connector = new DAppConnector(
+          {
+            name: "Cerberus",
+            description: "Intelligent Keeper Agent on Hedera",
+            url: typeof window !== "undefined" ? window.location.origin : "https://cerberus-agent.vercel.app",
+            icons: ["https://cryptologos.cc/logos/hedera-hbar-logo.png"],
+          },
+          LedgerId.TESTNET,
+          projectId,
+          undefined, // methods – SDK supplies defaults
+          undefined, // events
+          undefined  // chains
+        );
 
-        // Restore session if available
-        if (initData.savedPairings && initData.savedPairings.length > 0) {
-          const savedAccountId = initData.savedPairings[0].accountIds[0];
-          setAccountId(savedAccountId);
+        await connector.init({ logger: "error" });
+        connectorRef.current = connector;
+
+        if (cancelled) return;
+
+        // Restore any existing session
+        const sessions = connector.walletConnectClient?.session?.getAll?.() ?? [];
+        if (sessions.length > 0 && connector.signers.length > 0) {
+          const id = connector.signers[0].getAccountId().toString();
+          setAccountId(id);
           setConnected(true);
-          sessionStorage.setItem("sentinel-wallet", savedAccountId);
-        } else {
-          const localSaved = sessionStorage.getItem("sentinel-wallet");
-          if (localSaved) {
-            setAccountId(localSaved);
-            setConnected(true);
-          } else {
-            // Force hashconnect to clean up if no session exists, mitigating the decryption error
-            try {
-              (hashconnect as any).clearConnectionsAndData?.();
-            } catch (e) {}
-          }
+          sessionStorage.setItem("cerberus-wallet", id);
+          return;
         }
-      } catch (error) {
-        console.error("Failed to initialize HashConnect:", error);
-        // Fallback for decryption error: wipe corrupted state
-        localStorage.removeItem("hashconnectData");
+
+        // Restore from sessionStorage (faster UX on page reload)
+        const saved = sessionStorage.getItem("cerberus-wallet");
+        if (saved) {
+          setAccountId(saved);
+          setConnected(true);
+          return;
+        }
+
+        // Discover installed extensions
+        findExtensions((ext: any) => {
+          if (ext.available) {
+            setAvailableExtensions(prev => {
+              if (prev.find(e => e.id === ext.id)) return prev;
+              return [...prev, { id: ext.id, name: ext.name, icon: ext.icon }];
+            });
+          }
+        });
+      } catch (err) {
+        console.error("[CerberusWallet] Init failed:", err);
       }
     };
 
-    initHashConnect();
-
-    return () => {
-      isMounted = false;
-      if (hcRef.current && (hcRef.current as any)._onPairing) {
-        hcRef.current.pairingEvent.off((hcRef.current as any)._onPairing);
-      }
-    };
+    init();
+    return () => { cancelled = true; };
   }, []);
 
-  const connect = useCallback(async () => {
+  // ── Connect ────────────────────────────────────────────────────────────────
+  const connect = useCallback(async (extensionId?: string) => {
     setConnecting(true);
     try {
-      if (hcRef.current) {
-        // If initData is missing (due to a previous wipe), re-initialize
-        if (!initDataRef.current) {
-          initDataRef.current = await hcRef.current.init(APP_METADATA, "testnet", false);
-        }
-        
-        hcRef.current.connectToLocalWallet();
+      const connector = connectorRef.current;
+      if (!connector) throw new Error("SDK not initialised");
+
+      let session: any;
+
+      // 🎯 Explicitly default to HashPack if available
+      const hp = availableExtensions.find(e => e.id.toLowerCase().includes("hashpack") || e.id === "hashpack" || e.name?.toLowerCase().includes("hashpack"));
+      const targetId = extensionId || hp?.id || (availableExtensions.length > 0 ? availableExtensions[0].id : null);
+
+      if (targetId) {
+        // Direct extension connect — no pairing string dialog shown to user
+        logger.info(`[CerberusWallet] Connecting to extension: ${targetId}`);
+        session = await connector.connectExtension(targetId);
       } else {
-        console.error("HashConnect not initialized");
-        setConnecting(false);
+        // Fallback: show WalletConnect QR modal (for mobile or generic WC)
+        logger.info("[CerberusWallet] No extension found, opening WalletConnect modal");
+        session = await connector.openModal();
       }
-    } catch (error) {
-      console.error("Connection failed:", error);
-      // Attempt to clean corrupted data and try again
-      localStorage.removeItem("hashconnectData");
-      sessionStorage.removeItem("sentinel-wallet");
+
+      // Extract accountId from the session
+      const accounts: string[] = session?.namespaces?.hedera?.accounts ?? [];
+      if (accounts.length > 0) {
+        // Format is "hedera:testnet:0.0.xxxxxx"
+        const id = accounts[0].split(":").pop() ?? accounts[0];
+        setAccountId(id);
+        setConnected(true);
+        sessionStorage.setItem("cerberus-wallet", id);
+      } else {
+        throw new Error("No accounts returned from wallet");
+      }
+    } catch (err: any) {
+      console.error("[CerberusWallet] Connect failed:", err?.message ?? err);
+      // Clear any stale data
+      sessionStorage.removeItem("cerberus-wallet");
+    } finally {
       setConnecting(false);
     }
-    
-    setTimeout(() => {
-      setConnecting((prev) => {
-        if (prev && !connected) {
-          console.warn("Connection timeout - HashPack might be blocked or waiting.");
-        }
-        return false;
-      });
-    }, 15000); 
-  }, [connected]);
+  }, [availableExtensions]);
 
-  const disconnect = useCallback(() => {
-    setConnected(false);
-    setAccountId(null);
-    sessionStorage.removeItem("sentinel-wallet");
-    
-    if (hcRef.current) {
-      try {
-         const hc = hcRef.current as any;
-         if (typeof hc.clearConnectionsAndData === 'function') {
-            hc.clearConnectionsAndData();
-            initDataRef.current = null;
-         } else {
-            localStorage.removeItem("hashconnectData");
-            initDataRef.current = null;
-         }
-      } catch (e) {
-        console.error("Error during HashConnect disconnect", e);
+  // ── Disconnect ─────────────────────────────────────────────────────────────
+  const disconnect = useCallback(async () => {
+    try {
+      const connector = connectorRef.current;
+      if (connector) {
+        const sessions = connector.walletConnectClient?.session?.getAll?.() ?? [];
+        for (const s of sessions) {
+          await connector.walletConnectClient?.disconnect?.({
+            topic: s.topic,
+            reason: { code: 6000, message: "User disconnected" },
+          });
+        }
       }
-    } else {
-      localStorage.removeItem("hashconnectData");
+    } catch (err) {
+      console.error("[CerberusWallet] Disconnect error:", err);
+    } finally {
+      setConnected(false);
+      setAccountId(null);
+      sessionStorage.removeItem("cerberus-wallet");
     }
-    // Hard reload to completely flush hashconnect state
-    window.location.reload();
   }, []);
 
   return (
     <WalletContext.Provider value={{
-      connected, accountId, connecting, connect, disconnect,
+      connected, accountId, connecting, availableExtensions, connect, disconnect,
     }}>
       {children}
     </WalletContext.Provider>

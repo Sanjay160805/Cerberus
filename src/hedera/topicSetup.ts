@@ -12,7 +12,7 @@ export async function createHCSTopic(): Promise<string> {
   try {
     const client = getHederaClient();
     const tx = await new TopicCreateTransaction()
-      .setTopicMemo("Sentinel Agent Decision Log")
+      .setTopicMemo("Cerberus Agent Decision Log")
       .execute(client);
     const receipt = await tx.getReceipt(client);
     const topicId = receipt.topicId?.toString() || "";

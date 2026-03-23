@@ -15,9 +15,9 @@ export async function logDecisionToHCS(
   try {
     const client = getHederaClient();
     const message = JSON.stringify({
-      type: "SENTINEL_DECISION",
+      type: "CERBERUS_DECISION",
       cycle: decision.cycle,
-      timestamp: decision.timestamp,
+      timestamp: Date.now(),
       action: decision.action,
       threat_score: decision.threat_score,
       volatility: decision.volatility,

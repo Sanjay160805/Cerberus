@@ -99,7 +99,7 @@ export default function DecisionDetailModal({ decision, onClose }: DecisionDetai
             )}
 
             <div style={{ marginTop: "1.5rem", padding: "1rem", background: "var(--surface-hover)", borderRadius: "8px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              <strong>About this decision:</strong> The Sentinel AI agent analyzed market threat signals, calculated volatility, and determined this keeper action based on Gemini AI analysis. This decision was automatically logged to maintain an immutable on-chain audit trail.
+              <strong>About this decision:</strong> The Cerberus AI agent analyzed market threat signals, calculated volatility, and determined this keeper action based on Gemini AI analysis. This decision was automatically logged to maintain an immutable on-chain audit trail.
             </div>
           </div>
         </div>

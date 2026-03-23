@@ -92,7 +92,6 @@ export async function getHBARPrice(): Promise<PriceData> {
     console.warn('[SupraOracle] CoinGecko failed:', (err as Error).message);
   }
 
-  // Final fallback
-  console.warn('[SupraOracle] All sources failed, using mock $0.085');
-  return { price: 0.085, decimals: 8, timestamp: Date.now(), round: 0, source: 'mock' };
+  // All live sources failed — throw so callers know the price is unavailable
+  throw new Error('[SupraOracle] All live sources failed — Supra push, Supra REST, and CoinGecko unavailable');
 }

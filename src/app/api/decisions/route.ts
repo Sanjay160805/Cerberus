@@ -25,7 +25,7 @@ function parseHCSMessage(msg: HCSMessage): Decision | null {
   try {
     const decoded = Buffer.from(msg.message, "base64").toString("utf-8");
     const parsed = JSON.parse(decoded);
-    if (parsed.type !== "SENTINEL_DECISION") return null;
+    if (parsed.type !== "CERBERUS_DECISION") return null;
     return {
       id: msg.sequence_number,
       action: parsed.action ?? "HOLD",

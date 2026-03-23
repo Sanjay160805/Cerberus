@@ -40,7 +40,7 @@ export default function WalletConnect() {
   }
 
   return (
-    <button className="btn btn-primary" onClick={connect} disabled={connecting}>
+    <button className="btn btn-primary" onClick={() => connect()} disabled={connecting}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
         <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6l-8-4z"
           fill="currentColor"/>

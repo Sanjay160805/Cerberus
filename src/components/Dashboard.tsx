@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import ThreatMeter from "./ThreatMeter";
 import DecisionFeed from "./DecisionFeed";
 import TweetFeed from "./TweetFeed";
+import ScrapedTweetsBox from "./ScrapedTweetsBox";
 import PositionCard from "./PositionCard";
 import PriceChart from "./PriceChart";
 import WalletConnect from "./WalletConnect";
@@ -105,7 +106,7 @@ export default function Dashboard() {
       <div className="main-content" style={{ marginLeft: 0, width: "100%" }}>
         <div className="topbar">
           <div>
-            <div className="topbar-title">SENTINEL_DASHBOARD_</div>
+            <div className="topbar-title">CERBERUS_DASHBOARD_</div>
             <div style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700, textTransform: "uppercase" }}>
               Hedera Testnet <span style={{ color: "var(--purple)" }}>·</span> Bonzo Finance <span style={{ color: "var(--mint)" }}>·</span> Real-time AI Agent
               {lastScraped && (
@@ -217,6 +218,11 @@ export default function Dashboard() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
             <TweetFeed />
             <PositionCard />
+          </div>
+
+          {/* Scraped Tweets raw signal log */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <ScrapedTweetsBox limit={12} />
           </div>
 
           <DecisionFeed expanded />
