@@ -42,7 +42,7 @@ async function toEvmAddress(accountId: string): Promise<string> {
 
   logger.info(`Converting Hedera account ${accountId} to EVM address`);
 
-  const url = `https://testnet.mirrornode.hedera.com/api/v1/accounts/${shard}.${realm}.${num}`;
+  const url = `https://mainnet.mirrornode.hedera.com/api/v1/accounts/${shard}.${realm}.${num}`;
   logger.info(`Fetching from Mirror Node: ${url}`);
 
   const res = await fetch(url);

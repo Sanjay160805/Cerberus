@@ -49,17 +49,32 @@ export default function PositionCard() {
   const loadPosition = async () => {
     if (!connected || !accountId) { setPos(null); setLoading(false); return; }
     try {
-      const r = await fetch(`/api/positions?accountId=${encodeURIComponent(accountId)}`).then(d => d.json());
-      setPos(r.position ?? null);
-      const raw = r.price?.value ?? 0;
-      if (raw > 0) {
-        setHbarPrice(raw);
+      const res = await fetch(`/api/positions?accountId=${encodeURIComponent(accountId)}`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const r = await res.json();
+      
+      if (r.ok) {
+        setPos(r.position ?? null);
+        let p = r.price?.value ?? 0;
+        if (p === 0) {
+          try {
+            const cgRes = await fetch(
+              "https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd"
+            );
+            if (cgRes.ok) {
+              const cg = await cgRes.json();
+              p = cg?.["hedera-hashgraph"]?.usd ?? 0.085;
+            }
+          } catch {}
+        }
+        setHbarPrice(p);
       } else {
-        const cg = await fetch(
-          "https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd"
-        ).then(d => d.json()).catch(() => ({}));
-        setHbarPrice(cg?.["hedera-hashgraph"]?.usd ?? 0.085);
+        console.error("[PositionCard] API returned error:", r.error);
+        setPos(null);
       }
+    } catch (err) {
+      console.error("[PositionCard] Failed to load position:", err);
+      setPos(null);
     } finally {
       setLoading(false);
     }
@@ -143,15 +158,26 @@ export default function PositionCard() {
   /* ── tx feedback block ── */
   const TxFeedback = () => {
     if (bonzo.loading) return (
-      <div style={{ padding: "0.75rem", border: "2px solid var(--border)", background: "var(--surface)", fontSize: "0.8rem", fontWeight: 700, display: "flex", alignItems: "center" }}>
-        <Spinner /> WAITING FOR HASHPACK SIGNATURE…
+      <div style={{ padding: "0.75rem", border: "2px solid var(--border)", background: "var(--surface)", fontSize: "0.8rem", fontWeight: 700, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <Spinner /> 
+          {bonzo.totalSteps > 1 
+            ? `STEP ${bonzo.step}/${bonzo.totalSteps}: ${bonzo.step === 1 ? "SWAPPING HBAR" : bonzo.step === 2 ? "APPROVING USDC" : "REBALANCING VAULT"}`
+            : "WAITING FOR HASHPACK SIGNATURE…"}
+        </div>
+        {bonzo.totalSteps > 1 && (
+          <div style={{ height: 4, background: "var(--border)", width: "100%" }}>
+            <div style={{ height: "100%", background: "var(--purple)", width: `${(bonzo.step / bonzo.totalSteps) * 100}%`, transition: "width 0.3s" }} />
+          </div>
+        )}
       </div>
     );
+
     if (bonzo.txHash) return (
       <div style={{ padding: "0.75rem", border: "2px solid var(--border)", background: "var(--mint)", fontSize: "0.78rem", fontWeight: 700 }}>
         ✓ TX SUBMITTED&nbsp;
         <a
-          href={`https://hashscan.io/testnet/transaction/${bonzo.txHash}`}
+          href={`https://hashscan.io/mainnet/transaction/${bonzo.txHash}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: "inherit", textDecoration: "underline", wordBreak: "break-all" }}
@@ -182,7 +208,7 @@ export default function PositionCard() {
           </svg>
           Vault Position
           <span className="badge" style={{ marginLeft: "auto", background: "var(--purple)" }}>
-            Bonzo · Testnet
+            Bonzo · Mainnet
           </span>
         </div>
 

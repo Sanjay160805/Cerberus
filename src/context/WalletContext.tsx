@@ -1,4 +1,35 @@
 "use client";
+
+// Suppress Lit dev mode and relay warnings globally before any imports
+if (typeof globalThis !== "undefined") {
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  const isDevelopment = process.env.NODE_ENV === "development";
+  
+  const suppressMessage = (msg: any) => {
+    // Check if msg is an object with a msg property (wallet-connect relay format)
+    if (msg && typeof msg === "object" && msg.msg) {
+      return msg.msg.includes("onRelayMessage") || msg.msg.includes("failed to process");
+    }
+    // Check string messages
+    const str = String(msg);
+    return (
+      str.includes("Lit is in dev mode") ||
+      str.includes("onRelayMessage") ||
+      str.includes("failed to process an inbound message")
+    );
+  };
+  
+  if (isDevelopment) {
+    console.warn = (...args) => {
+      if (!suppressMessage(args[0])) originalWarn(...args);
+    };
+    console.error = (...args) => {
+      if (!suppressMessage(args[0])) originalError(...args);
+    };
+  }
+}
+
 import {
   createContext, useContext, useState,
   useCallback, useEffect, ReactNode, useRef
@@ -67,7 +98,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           undefined  // chains
         );
 
+        // Init connector (console suppression is now global in this file)
         await connector.init({ logger: "error" });
+
         connectorRef.current = connector;
 
         if (cancelled) return;
@@ -188,30 +221,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const { ContractExecuteTransaction, ContractId, Hbar, Client, TransactionId, AccountId } = await import("@hashgraph/sdk");
     const { getBytes } = await import("ethers");
 
-    // Create a testnet client for network context (node account IDs)
-    const client = Client.forTestnet();
+    // Resolve Contract ID from EVM address if needed
+    let contractId: any;
+    if (to.startsWith("0x") && to.length === 42) {
+      try {
+        const res = await fetch(`https://mainnet.mirrornode.hedera.com/api/v1/accounts/${to}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.account) {
+            contractId = ContractId.fromString(json.account);
+            logger.info(`Resolved EVM ${to} to Contract ID ${json.account}`);
+          } else {
+            contractId = ContractId.fromEvmAddress(0, 0, to);
+          }
+        } else {
+          // If 404 or other error, assume it's a contract/token and use EVM address directly
+          contractId = ContractId.fromEvmAddress(0, 0, to);
+        }
+      } catch {
+        contractId = ContractId.fromEvmAddress(0, 0, to);
+      }
+    } else {
+      contractId = ContractId.fromString(to);
+    }
 
     const signer = connector.signers[0];
     const signerAccountId = signer.getAccountId();
 
     const tx = new ContractExecuteTransaction()
-      .setContractId(ContractId.fromEvmAddress(0, 0, to))
-      .setGas(300000)
+      .setContractId(contractId)
+      .setGas(1000000) // Bumping gas for complex Bonzo calls
       .setFunctionParameters(getBytes(data))
       .setTransactionId(TransactionId.generate(signerAccountId))
-      .setNodeAccountIds([new AccountId(3)]); // Use a standard testnet node to avoid freezeWith network query issues
+      .setNodeAccountIds([new AccountId(3)]);
 
     if (parseFloat(amountHbar) > 0) {
       tx.setPayableAmount(Hbar.fromString(amountHbar));
     }
 
-    // Freeze manually instead of using a client to avoid "Query.fromBytes" bugs during network map fetch
     await tx.freeze();
-
-    // Sign and execute via the wallet signer (HashPack)
     const response = await signer.call(tx);
-    
-    // SDK response has transactionId
     return (response as any).transactionId?.toString() ?? response.toString();
   }, []);
 

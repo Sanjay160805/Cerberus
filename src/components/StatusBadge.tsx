@@ -20,7 +20,7 @@ export default function StatusBadge() {
   const agent = status?.agent;
 
   const rows = agent ? [
-    { label: "Network",     value: "Hedera Testnet",   color: "#7c3aed" },
+    { label: "Network",     value: "Hedera Mainnet",   color: "#7c3aed" },
     { label: "Tweets",      value: (agent.tweetCount ?? 0).toLocaleString(), color: "#0ea5e9" },
     { label: "Last Action", value: agent.lastDecision?.action ?? "—", color: "#7c3aed" },
     { label: "Last Cycle",  value: agent.lastDecision?.timestamp

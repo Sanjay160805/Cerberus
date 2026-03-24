@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const HCS_TOPIC_ID = process.env.HCS_TOPIC_ID ?? "0.0.8314584";
-const MIRROR_URL = `https://testnet.mirrornode.hedera.com/api/v1/topics/${HCS_TOPIC_ID}/messages`;
+const MIRROR_URL = `https://mainnet.mirrornode.hedera.com/api/v1/topics/${HCS_TOPIC_ID}/messages`;
 
 interface HCSMessage {
   consensus_timestamp: string;

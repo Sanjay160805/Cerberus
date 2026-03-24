@@ -7,6 +7,7 @@ const DATA_PROVIDER_ABI = [
   "function getReserveData(address asset) external view returns (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool)",
   "function getUserReserveData(address asset, address user) external view returns (uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint40)",
   "function getAllReservesTokens() external view returns (tuple(string,address)[])",
+  "function getReserveTokensAddresses(address asset) external view returns (address,address,address)",
 ];
 
 function getDataProvider(): ethers.Contract {
@@ -54,6 +55,20 @@ export async function getUserReserveData(asset: string, user?: string): Promise<
     return { currentATokenBalance: data[0], currentStableDebt: data[1], currentVariableDebt: data[2], principalStableDebt: data[3], scaledVariableDebt: data[4], stableBorrowRate: data[5], liquidityRate: data[6] };
   } catch (error) {
     logger.error("getUserReserveData failed", error);
+    return null;
+  }
+}
+
+export async function getReserveTokensAddresses(asset: string): Promise<{ aToken: string; stableDebtToken: string; variableDebtToken: string } | null> {
+  try {
+    const data = await getDataProvider().getReserveTokensAddresses(asset);
+    return {
+      aToken: data[0],
+      stableDebtToken: data[1],
+      variableDebtToken: data[2],
+    };
+  } catch (error) {
+    logger.error("getReserveTokensAddresses failed", error);
     return null;
   }
 }

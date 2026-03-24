@@ -1,80 +1,122 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
-import { BONZO_WETH_GATEWAY, BONZO_LENDING_POOL } from "@/lib/constants";
+import { BONZO_LENDING_POOL, SAUCERSWAP_V2_ROUTER, WHBAR_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/lib/constants";
+import { getProvider } from "@/bonzo/client";
 
-// WETHGateway ABI — only the function we need
-const WETH_GATEWAY_ABI = [
-  "function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) external payable",
+// ABIs
+const SAUCERSWAP_ROUTER_ABI = [
+  "function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)",
+];
+const ERC20_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function balanceOf(address account) external view returns (uint256)",
+];
+const LENDING_POOL_ABI = [
+  "function deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
 ];
 
-/**
- * Resolve Hedera account ID (0.0.X) → EVM address via Mirror Node
- */
 async function toEvmAddress(accountId: string): Promise<string> {
   if (accountId.startsWith("0x")) return accountId;
-  const segments = accountId.split(".");
-  if (segments.length !== 3) throw new Error(`Invalid Hedera account: ${accountId}`);
-  const res = await fetch(
-    `https://testnet.mirrornode.hedera.com/api/v1/accounts/${accountId}`
-  );
-  if (!res.ok) throw new Error(`Mirror Node error ${res.status} for ${accountId}`);
+  const res = await fetch(`https://mainnet.mirrornode.hedera.com/api/v1/accounts/${accountId}`);
   const data = await res.json() as { evm_address?: string };
-  if (!data.evm_address) throw new Error(`No EVM address for ${accountId}`);
+  if (!data?.evm_address) throw new Error(`No EVM address for ${accountId}`);
   return data.evm_address;
 }
 
 /**
  * POST /api/vault/deposit
- * Body: { amount: string (HBAR, e.g. "10"), accountId: string }
- * Returns unsigned tx { to, data, value } for the browser to sign via HashPack
+ * Step 1: Swap HBAR -> USDC
+ * Step 2: Approve USDC
+ * Step 3: Deposit USDC
  */
 export async function POST(req: NextRequest) {
   try {
-    const { amount, accountId } = await req.json();
-
-    if (!amount || !accountId) {
-      return NextResponse.json(
-        { ok: false, error: "amount and accountId are required" },
-        { status: 400 }
-      );
-    }
-
-    const amountFloat = parseFloat(amount);
-    if (isNaN(amountFloat) || amountFloat <= 0) {
-      return NextResponse.json(
-        { ok: false, error: "amount must be a positive number" },
-        { status: 400 }
-      );
-    }
-
-    // Convert HBAR → tinybars → wei (1 HBAR = 1e8 tinybars; Hedera EVM uses 1e18 wei = 1 HBAR)
-    const amountWei = ethers.parseEther(amountFloat.toString());
-
-    // Resolve EVM address for the user
+    const body = await req.json();
+    const { amount, accountId, step = 1 } = body;
     const evmAddress = await toEvmAddress(accountId);
+    const amountWei = ethers.parseEther(amount || "0");
 
-    // Encode depositETH calldata
-    const iface = new ethers.Interface(WETH_GATEWAY_ABI);
-    const data = iface.encodeFunctionData("depositETH", [
-      BONZO_LENDING_POOL,
-      evmAddress,
-      0,
-    ]);
+    if (step === 1) {
+      // Step 1: Swap HBAR -> USDC (SaucerSwap V2)
+      const iface = new ethers.Interface(SAUCERSWAP_ROUTER_ABI);
+      const deadline = Math.floor(Date.now() / 1000) + 3600;
+      const data = iface.encodeFunctionData("swapExactETHForTokens", [
+        0, // amountOutMin (0 for testnet simplicity)
+        [WHBAR_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS],
+        evmAddress,
+        deadline,
+      ]);
 
-    return NextResponse.json({
-      ok: true,
-      tx: {
-        to: BONZO_WETH_GATEWAY,
-        data,
-        value: amountWei.toString(), // hex or decimal string — ethers handles both
-      },
-      evmAddress,
-      amountHbar: amountFloat,
-    });
+      return NextResponse.json({
+        ok: true,
+        step: 1,
+        nextStep: 2,
+        action: "SWAP_HBAR_TO_USDC",
+        tx: { to: SAUCERSWAP_V2_ROUTER, data, value: amountWei.toString() },
+      });
+    }
+
+    if (step === 2) {
+      // Step 2: Approve USDC for LendingPool
+      // Here we assume the user just finished swapping. 
+      // We don't know the exact amount yet, so we approve "infinite" or a large enough amount.
+      const iface = new ethers.Interface(ERC20_ABI);
+      const data = iface.encodeFunctionData("approve", [
+        BONZO_LENDING_POOL,
+        ethers.MaxUint256,
+      ]);
+
+      return NextResponse.json({
+        ok: true,
+        step: 2,
+        nextStep: 3,
+        action: "APPROVE_USDC",
+        tx: { to: USDC_TOKEN_ADDRESS, data, value: "0" },
+      });
+    }
+
+    if (step === 3) {
+      // Step 3: Deposit USDC
+      // Since we don't know the balance on-chain in this stateless API easily without a provider,
+      // we'll use a provider here to fetch the actual USDC balance to avoid reverts.
+      const iface = new ethers.Interface(LENDING_POOL_ABI);
+      
+      const provider = getProvider();
+      const usdcContract = new ethers.Contract(USDC_TOKEN_ADDRESS, ERC20_ABI, provider);
+      
+      let depositAmount: bigint;
+      const { usdcAmount } = body;
+
+      if (usdcAmount && usdcAmount !== "MAX") {
+        depositAmount = ethers.parseUnits(usdcAmount, 6);
+      } else {
+        // Fetch actual balance if usdcAmount is "MAX" or not provided
+        depositAmount = await usdcContract.balanceOf(evmAddress);
+      }
+
+      if (depositAmount === 0n) {
+        return NextResponse.json({ ok: false, error: "USDC balance not found. Please wait for the swap to complete." });
+      }
+
+      const data = iface.encodeFunctionData("deposit", [
+        USDC_TOKEN_ADDRESS,
+        depositAmount,
+        evmAddress,
+        0,
+      ]);
+
+      return NextResponse.json({
+        ok: true,
+        step: 3,
+        nextStep: null,
+        action: "DEPOSIT_USDC",
+        tx: { to: BONZO_LENDING_POOL, data, value: "0" },
+      });
+    }
+
+    return NextResponse.json({ ok: false, error: "Invalid step" });
   } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: err?.message ?? String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: err?.message ?? String(err) }, { status: 500 });
   }
 }
+

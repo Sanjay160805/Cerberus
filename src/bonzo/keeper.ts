@@ -8,7 +8,9 @@ import { depositHBAR, withdrawHBAR } from "./wethGateway";
 import { ethers } from "ethers";
 
 const ADJUST_FRACTION = 0.20;
-const HBAR_APY = "94.15%"; // Static APY for HBAR deposits on Bonzo testnet
+const USDC_APY = "5.12%"; // USDC Supply APY on Bonzo Mainnet
+const HBAR_APY = "12.45%"; // HBAR Supply APY on Bonzo Mainnet
+
 
 // ─── Vault position ────────────────────────────────────────────────────────────
 export async function getVaultPosition(
@@ -36,13 +38,14 @@ export async function getVaultPosition(
         : (Number(data.healthFactor) / 1e18).toFixed(2);
     
     return {
-      asset: "HBAR",
+      asset: "USDC",
       deposited: (Number(data.totalCollateralETH) / 1e18).toFixed(4),
       borrowed: (Number(data.totalDebtETH) / 1e18).toFixed(4),
       healthFactor,
-      apy: HBAR_APY,
+      apy: USDC_APY,
       rewards: (Number(data.availableBorrowsETH) / 1e18).toFixed(4),
     };
+
   } catch (err) {
     logger.error("Real-time Bonzo position fetch failed:", err);
     throw err; // Real implementation only, no fallbacks

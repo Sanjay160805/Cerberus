@@ -49,19 +49,29 @@ export default function Dashboard() {
     const load = async () => {
       try {
         const query = accountId ? `?accountId=${accountId}` : "";
-        const r = await fetch(`/api/positions${query}`).then(x => x.json());
+        const res = await fetch(`/api/positions${query}`);
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const r = await res.json();
+        
         if (r.ok) {
           setVaultData(r.position);
           let p = r.price?.value ?? 0;
           if (p === 0) {
-            const cg = await fetch(
-              "https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd"
-            ).then(x => x.json()).catch(() => ({}));
-            p = cg?.["hedera-hashgraph"]?.usd ?? 0;
+            try {
+              const cgRes = await fetch(
+                "https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd"
+              );
+              if (cgRes.ok) {
+                const cg = await cgRes.json();
+                p = cg?.["hedera-hashgraph"]?.usd ?? 0;
+              }
+            } catch {}
           }
           setHbarPrice(p);
         }
-      } catch {}
+      } catch (err) {
+        console.error("[Dashboard] Failed to fetch positions:", err);
+      }
     };
     load();
     const t = setInterval(load, 30000);
@@ -113,7 +123,7 @@ export default function Dashboard() {
           <div>
             <div className="topbar-title">CERBERUS_DASHBOARD_</div>
             <div style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700, textTransform: "uppercase" }}>
-              Hedera Testnet <span style={{ color: "var(--purple)" }}>·</span> Bonzo Finance <span style={{ color: "var(--mint)" }}>·</span> Real-time AI Agent
+              Hedera Mainnet <span style={{ color: "var(--purple)" }}>·</span> Bonzo Finance <span style={{ color: "var(--mint)" }}>·</span> Real-time AI Agent
               {lastScraped && (
                 <span style={{ marginLeft: "0.75rem", background: nextUpdate <= 5 ? "var(--mint)" : "var(--surface)", border: "1px solid var(--border)", padding: "0 4px" }}>
                   <span style={{ color: "var(--purple)" }}>·</span> TWEETS UPD: {lastScraped} <span style={{ color: "var(--purple)" }}>·</span> NEXT: {nextUpdate}m
@@ -211,7 +221,7 @@ export default function Dashboard() {
               <div className="stat-value mono" style={{ fontSize: "1.5rem", color: "var(--text-primary)", textShadow: "2px 2px 0px var(--yellow)" }}>
                 HEDERA
               </div>
-              <div className="stat-delta neutral" style={{ background: "white", border: "1px solid black", padding: "0 4px", color: "black" }}>TESTNET · HCS ON</div>
+              <div className="stat-delta neutral" style={{ background: "white", border: "1px solid black", padding: "0 4px", color: "black" }}>MAINNET · HCS ON</div>
             </div>
           </div>
 

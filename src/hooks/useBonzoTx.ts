@@ -1,89 +1,146 @@
 "use client";
 import { useState, useCallback } from "react";
 import { useWallet } from "@/context/WalletContext";
+import { ethers } from "ethers";
 
 interface TxState {
   loading: boolean;
   txHash: string | null;
   error: string | null;
+  step: number;
+  totalSteps: number;
 }
 
-/**
- * useBonzoTx
- *
- * Provides deposit() and withdraw() functions that:
- *  1. Call the Sentinel API to get unsigned calldata
- *  2. Pass it to WalletContext.executeContractCall()
- *  3. Return the Transaction ID / Hash on success
- *
- * This bypasses window.ethereum to avoid MetaMask interference.
- */
+const ERC20_ABI = ["function balanceOf(address account) external view returns (uint256)"];
+const USDC_TOKEN_ADDRESS = "0x0000000000000000000000000000000000001549";
+
 export function useBonzoTx(accountId: string | null) {
   const { executeContractCall } = useWallet();
   const [state, setState] = useState<TxState>({
     loading: false,
     txHash: null,
     error: null,
+    step: 0,
+    totalSteps: 0,
   });
 
-  const reset = () => setState({ loading: false, txHash: null, error: null });
+  const reset = () => setState({ loading: false, txHash: null, error: null, step: 0, totalSteps: 0 });
 
-  const sendTx = useCallback(
-    async (
-      endpoint: "/api/vault/deposit" | "/api/vault/withdraw",
-      amountHbar: string
-    ): Promise<string | null> => {
+  const deposit = useCallback(
+    async (amountHbar: string): Promise<string | null> => {
       if (!accountId) {
-        setState((s: TxState) => ({ ...s, error: "Wallet not connected" }));
+        setState((s) => ({ ...s, error: "Wallet not connected" }));
         return null;
       }
 
-      setState({ loading: true, txHash: null, error: null });
+      setState({ loading: true, txHash: null, error: null, step: 1, totalSteps: 3 });
 
       try {
-        // 1. Get unsigned tx (calldata) from our API
-        const res = await fetch(endpoint, {
+        // STEP 1: Swap HBAR to USDC
+        const res1 = await fetch("/api/vault/deposit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: amountHbar, accountId }),
+          body: JSON.stringify({ amount: amountHbar, accountId, step: 1 }),
         });
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.error ?? "API error");
+        const json1 = await res1.json();
+        if (!json1.ok) throw new Error(json1.error || "Swap failed");
 
-        const unsignedTx = json.tx as {
-          to: string;
-          data: string;
-          value: string;
-        };
+        await executeContractCall(json1.tx.to, json1.tx.data, amountHbar);
+        
+        // Wait a bit for the swap to index (Hedera is fast but let's be safe)
+        await new Promise(r => setTimeout(r, 3000));
 
-        // 2. Execute via WalletContext (Hedera SDK + HWC Signer)
-        // This will trigger the HashPack popup directly
-        const txId = await executeContractCall(
-          unsignedTx.to,
-          unsignedTx.data,
-          endpoint === "/api/vault/deposit" ? amountHbar : "0"
-        );
+        // STEP 2: Approve USDC
+        setState(s => ({ ...s, step: 2 }));
+        const res2 = await fetch("/api/vault/deposit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId, step: 2 }),
+        });
+        const json2 = await res2.json();
+        if (!json2.ok) throw new Error(json2.error || "Approve failed");
 
-        setState({ loading: false, txHash: txId, error: null });
+        await executeContractCall(json2.tx.to, json2.tx.data, "0");
+        await new Promise(r => setTimeout(r, 2000));
+
+        // STEP 3: Deposit USDC
+        setState(s => ({ ...s, step: 3 }));
+        
+        const res3 = await fetch("/api/vault/deposit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            accountId, 
+            step: 3, 
+            usdcAmount: "MAX"
+          }),
+        });
+        const json3 = await res3.json();
+        if (!json3.ok) throw new Error(json3.error || "Deposit failed");
+
+        const txId = await executeContractCall(json3.tx.to, json3.tx.data, "0");
+
+        setState({ loading: false, txHash: txId, error: null, step: 3, totalSteps: 3 });
         return txId;
       } catch (err: any) {
-        const msg = err?.message ?? String(err);
-        setState({ loading: false, txHash: null, error: msg });
+        setState({ loading: false, txHash: null, error: err.message || String(err), step: 0, totalSteps: 0 });
         return null;
       }
     },
     [accountId, executeContractCall]
   );
 
-  const deposit = useCallback(
-    (amountHbar: string) => sendTx("/api/vault/deposit", amountHbar),
-    [sendTx]
+  const withdraw = useCallback(
+    async (amountHbar: string): Promise<string | null> => {
+      if (!accountId) {
+        setState((s) => ({ ...s, error: "Wallet not connected" }));
+        return null;
+      }
+
+      setState({ loading: true, txHash: null, error: null, step: 1, totalSteps: 2 });
+
+      try {
+        // STEP 1: Withdraw USDC from Bonzo
+        const res1 = await fetch("/api/vault/withdraw", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: amountHbar, accountId, step: 1 }),
+        });
+        const json1 = await res1.json();
+        if (!json1.ok) throw new Error(json1.error || "Withdraw failed");
+
+        await executeContractCall(json1.tx.to, json1.tx.data, "0");
+        
+        // Wait for indexing
+        await new Promise(r => setTimeout(r, 3000));
+
+        // STEP 2: Swap USDC back to HBAR
+        setState(s => ({ ...s, step: 2 }));
+        const res2 = await fetch("/api/vault/withdraw", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            accountId, 
+            step: 2,
+            usdcAmount: "MAX"
+          }),
+        });
+        const json2 = await res2.json();
+        if (!json2.ok) throw new Error(json2.error || "Swap back failed");
+
+        const txId = await executeContractCall(json2.tx.to, json2.tx.data, "0");
+
+        setState({ loading: false, txHash: txId, error: null, step: 2, totalSteps: 2 });
+        return txId;
+      } catch (err: any) {
+        setState({ loading: false, txHash: null, error: err.message || String(err), step: 0, totalSteps: 0 });
+        return null;
+      }
+    },
+    [accountId, executeContractCall]
   );
 
-  const withdraw = useCallback(
-    (amountHbar: string) => sendTx("/api/vault/withdraw", amountHbar),
-    [sendTx]
-  );
 
   return { ...state, deposit, withdraw, reset };
 }
+

@@ -189,7 +189,7 @@ export default function DecisionFeed({ expanded = false }: { expanded?: boolean 
           <span style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 700, textTransform: "uppercase" }}>
             Live from Hedera HCS ·{" "}
             <a
-              href={`https://hashscan.io/testnet/topic/${HCS_TOPIC_ID}`}
+              href={`https://hashscan.io/mainnet/topic/${HCS_TOPIC_ID}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: "var(--text-primary)", fontWeight: 900, textDecoration: "underline" }}

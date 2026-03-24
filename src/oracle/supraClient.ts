@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 const SUPRA_PUSH_ADDRESS = process.env.SUPRA_ORACLE_ADDRESS || '0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917';
-const HEDERA_TESTNET_RPC = process.env.BONZO_RPC_URL || 'https://testnet.hashio.io/api';
+const HEDERA_RPC = process.env.BONZO_RPC_URL || 'https://mainnet.hashio.io/api';
 const HBAR_USDT_PAIR_INDEX = 800;
 
 const SUPRA_ABI = [
@@ -37,7 +37,7 @@ export interface PriceData {
 export async function getHBARPrice(): Promise<PriceData> {
   // Try 1: Supra push oracle via EVM
   try {
-    const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+    const provider = new ethers.JsonRpcProvider(HEDERA_RPC);
     const oracle = new ethers.Contract(SUPRA_PUSH_ADDRESS, SUPRA_ABI, provider);
     const feed = await oracle.getSvalue(HBAR_USDT_PAIR_INDEX);
     const decimals = Number(feed.decimals);

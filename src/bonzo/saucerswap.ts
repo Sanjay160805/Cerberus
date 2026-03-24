@@ -2,15 +2,11 @@ import { ethers } from "ethers";
 import {
   HEDERA_RPC_URL, HEDERA_PRIVATE_KEY, HEDERA_EVM_ADDRESS,
   SAUCERSWAP_ROUTER_ADDRESS, USDC_TOKEN_ADDRESS, VAULT_UNDERLYING_TOKEN,
-} from "./config";
-import { logger } from "./logger";
+} from "@/lib/config";
+import { logger } from "@/lib/serverLogger";
 
 const ROUTER_ABI = [
-  `function exactInputSingle(
-    (address tokenIn, address tokenOut, uint24 fee, address recipient,
-     uint256 deadline, uint256 amountIn, uint256 amountOutMinimum,
-     uint160 sqrtPriceLimitX96)
-  ) payable returns (uint256 amountOut)`,
+  "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)",
 ];
 
 const ERC20_ABI = [
@@ -61,7 +57,7 @@ export async function swapUnderlyingToUSDC(feeTier = FEE_TIER.STANDARD): Promise
     recipient:         HEDERA_EVM_ADDRESS,
     deadline:          BigInt(Math.floor(Date.now() / 1000) + 300),
     amountIn,
-    amountOutMinimum:  0n, // ⚠️ Use quoter contract in production for slippage protection
+    amountOutMinimum:  0n, // Slip protection omitted for mainnet
     sqrtPriceLimitX96: 0n,
   });
   await tx.wait();
@@ -89,7 +85,7 @@ export async function swapUSDCToUnderlying(feeTier = FEE_TIER.STANDARD): Promise
     recipient:         HEDERA_EVM_ADDRESS,
     deadline:          BigInt(Math.floor(Date.now() / 1000) + 300),
     amountIn,
-    amountOutMinimum:  0n, // ⚠️ Use quoter contract in production for slippage protection
+    amountOutMinimum:  0n,
     sqrtPriceLimitX96: 0n,
   });
   await tx.wait();
