@@ -148,16 +148,25 @@ export async function executeKeeperAction(
     }
 
     case "BORROW": {
+      const { VAULT_UNDERLYING_TOKEN } = await import("@/lib/config");
+      const { getReserveTokensAddresses } = await import("./dataProvider");
+      const tokens = await getReserveTokensAddresses(VAULT_UNDERLYING_TOKEN);
+      const debtToken = tokens?.variableDebtToken || "0x00000000000000000000000000000000006634c0";
+      
       const amountNative = action.params?.amount ? Number(action.params.amount) : currentDepositHBAR * 0.10;
       const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
-      // Default to variable rate (2) and aHBAR token
-      return await borrow("0x6e96a607F2F5657b39bf58293d1A006f9415aF32", amountWei, 2, accountId);
+      return await borrow(debtToken, amountWei, 2, accountId);
     }
 
     case "REPAY": {
+      const { VAULT_UNDERLYING_TOKEN } = await import("@/lib/config");
+      const { getReserveTokensAddresses } = await import("./dataProvider");
+      const tokens = await getReserveTokensAddresses(VAULT_UNDERLYING_TOKEN);
+      const debtToken = tokens?.variableDebtToken || "0x00000000000000000000000000000000006634c0";
+      
       const amountNative = action.params?.amount ? Number(action.params.amount) : currentDepositHBAR * 0.10;
       const amountWei = BigInt(Math.floor(amountNative * 1e8)) * BigInt(1e10);
-      return await repay("0x6e96a607F2F5657b39bf58293d1A006f9415aF32", amountWei, 2, accountId);
+      return await repay(debtToken, amountWei, 2, accountId);
     }
 
     case "HOLD":
