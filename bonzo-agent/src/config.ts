@@ -24,8 +24,7 @@ export const HEDERA_RPC_URL            = HEDERA_NETWORK === "mainnet"
                                            ? "https://mainnet.hashio.io/api"
                                            : "https://testnet.hashio.io/api";
 
-export const GEMINI_API_KEY            = optional("GEMINI_API_KEY", optional("GOOGLE_API_KEY", ""));
-export const ANTHROPIC_API_KEY         = optional("ANTHROPIC_API_KEY", "");
+export const GEMINI_API_KEY            = requireEnv("GEMINI_API_KEY");
 
 
 export const BONZO_VAULT_ADDRESS       = requireEnv("BONZO_VAULT_ADDRESS");

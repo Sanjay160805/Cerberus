@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { ANTHROPIC_API_KEY, BEARISH_THRESHOLD, BULLISH_THRESHOLD } from "./config";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { GEMINI_API_KEY, BEARISH_THRESHOLD, BULLISH_THRESHOLD } from "./config";
 import { MarketData } from "./scraper";
 import { logger } from "./logger";
 
@@ -103,9 +103,15 @@ NON-NEGOTIABLE RULES
   The cost of unnecessary IL from staying in during a crash far outweighs
   the cost of missing a short-term fee yield by temporarily exiting.
 `.trim();
+
 // ─────────────────────────────────────────────────────────────────────────────
 
-const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+const client = new ChatGoogleGenerativeAI({
+  apiKey:      GEMINI_API_KEY,
+  model:       "gemini-2.0-flash-lite",
+  temperature: 0.1,
+  maxOutputTokens: 512,
+});
 
 export async function getPrediction(
   marketData: MarketData,
@@ -118,27 +124,21 @@ export async function getPrediction(
     agentState: { currentlyInVault: inVault },
   };
 
-  logger.info("[Predictor] Sending market data to Claude for analysis ...");
+  logger.info("[Predictor] Sending market data to Gemini for analysis ...");
 
-  const response = await client.messages.create({
-    model:      "claude-sonnet-4-20250514",
-    max_tokens: 512,
-    system:     SYSTEM_PROMPT,
-    messages:   [{ role: "user", content: JSON.stringify(userPayload, null, 2) }],
-  });
+  const response = await client.invoke([
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: JSON.stringify(userPayload, null, 2) },
+  ]);
 
-  const rawText = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => (b as Anthropic.TextBlock).text)
-    .join("");
-
+  const rawText = response.content as string;
   const cleaned = rawText.replace(/```(?:json)?|```/g, "").trim();
 
   let prediction: Prediction;
   try {
     prediction = JSON.parse(cleaned) as Prediction;
   } catch {
-    logger.error(`[Predictor] Failed to parse Claude response: ${cleaned}`);
+    logger.error(`[Predictor] Failed to parse Gemini response: ${cleaned}`);
     prediction = {
       signal: "NEUTRAL", confidence: 0, action: "HOLD", urgency: "LOW",
       reasoning: "Failed to parse AI response. Defaulting to HOLD for safety.",

@@ -10,7 +10,7 @@
     "watch": "ts-node-dev --respawn src/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@langchain/google-genai": "^0.1.0",
     "@hashgraph/sdk": "^2.50.0",
     "@hashgraphonline/hedera-agent-kit": "^0.0.22",
     "axios": "^1.7.9",
