@@ -7,6 +7,7 @@ const lineFormat = printf(({ level, message, timestamp }) => {
 });
 
 const isBrowser = typeof window !== "undefined";
+const isVercel = process.env.VERCEL === "1" || !!process.env.NEXT_PUBLIC_VERCEL_URL;
 
 export const logger = createLogger({
   level: "info",
@@ -15,7 +16,7 @@ export const logger = createLogger({
     timestamp({ format: "YYYY-MM-DD HH:mm:ss" }), 
     lineFormat
   ),
-  transports: isBrowser 
+  transports: (isBrowser || isVercel)
     ? [new transports.Console()]
     : [
         new transports.Console(),

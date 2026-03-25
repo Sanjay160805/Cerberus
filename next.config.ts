@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3", "@hashgraph/sdk"],
+  serverExternalPackages: ["better-sqlite3", "@hashgraph/sdk", "winston"],
   webpack: (config, { isServer }) => {
     config.externals.push("better-sqlite3");
 
